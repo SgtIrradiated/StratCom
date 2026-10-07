@@ -1,0 +1,40 @@
+# Production stack: StratCom behind Caddy (automatic HTTPS).
+#
+#   cp .env.example deploy/.env   # then set STRATCOM_DOMAIN
+#   docker compose -f deploy/docker-compose.yml up -d --build
+#
+# See docs/deployment.md for the full guide.
+name: stratcom
+
+services:
+  stratcom:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: stratcom:latest
+    restart: unless-stopped
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    expose:
+      - "8080"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      stratcom:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    environment:
+      STRATCOM_DOMAIN: ${STRATCOM_DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

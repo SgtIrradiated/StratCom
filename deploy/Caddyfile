@@ -1,0 +1,7 @@
+# Caddy obtains and renews a Let's Encrypt certificate for STRATCOM_DOMAIN automatically.
+# With the default "localhost" it uses a locally trusted self-signed certificate.
+# Caching and cross-origin isolation headers are set by the StratCom server itself.
+{$STRATCOM_DOMAIN:localhost} {
+	encode zstd gzip
+	reverse_proxy stratcom:8080
+}

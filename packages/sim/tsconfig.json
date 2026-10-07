@@ -1,0 +1,5 @@
+{
+  "//": "Deliberately no DOM lib and no @types/node: host APIs must not be reachable from the sim (ADR-0002).",
+  "extends": "../../tsconfig.base.json",
+  "include": ["src"]
+}

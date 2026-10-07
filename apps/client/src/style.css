@@ -1,0 +1,74 @@
+/*
+ * Base styles plus the M0 boot overlay. Real HUD skins (terminal-clean / terminal-rust)
+ * arrive with the faction-select screen in M3.
+ */
+:root {
+  --phosphor: #4cff7a;
+  --bg: #0b0f0b;
+  --font-terminal: ui-monospace, "Cascadia Mono", "DejaVu Sans Mono", Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--phosphor);
+  font-family: var(--font-terminal);
+}
+
+#viewport {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+#ui {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+.boot-panel {
+  position: absolute;
+  top: 1.5rem;
+  left: 1.5rem;
+  max-width: 34rem;
+  padding: 1rem 1.25rem;
+  background: rgb(8 12 8 / 82%);
+  border: 1px solid currentcolor;
+  box-shadow: 0 0 12px rgb(76 255 122 / 25%);
+  text-shadow: 0 0 4px currentcolor;
+  line-height: 1.5;
+}
+
+.boot-panel h1 {
+  margin: 0 0 0.5rem;
+  font-size: 1.5rem;
+  letter-spacing: 0.3em;
+}
+
+.boot-panel ul {
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.boot-panel li::before {
+  content: "> ";
+}
+
+.boot-panel .muted {
+  opacity: 0.7;
+}
+
+.boot-panel.error {
+  color: #ff5a4c;
+}

@@ -1,0 +1,19 @@
+{
+  "name": "@stratcom/data",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Validated, data-driven StratCom content: factions now; units, weapons and maps in later milestones.",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@stratcom/shared": "workspace:*",
+    "zod": "^4.6.5"
+  }
+}

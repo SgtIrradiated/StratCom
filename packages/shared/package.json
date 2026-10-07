@@ -1,0 +1,15 @@
+{
+  "name": "@stratcom/shared",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Tiny dependency-free utilities shared by every StratCom package.",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}
