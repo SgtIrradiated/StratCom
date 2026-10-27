@@ -1,12 +1,13 @@
 import { expect, test } from "@playwright/test";
-import { runDetScenario } from "@stratcom/sim";
+import { runDetScenario, runSkirmishDetScenario } from "@stratcom/sim";
 
-// The same scripted match must produce identical state hashes in Node and in every browser
-// engine (V8, SpiderMonkey, JavaScriptCore). See ADR-0002.
+// The same scripted matches must produce identical state hashes in Node and in every browser
+// engine (V8, SpiderMonkey, JavaScriptCore). See ADR-0002. `test` uses the fixed test ruleset
+// (pinned in detcheck.test.ts); `skirmish` uses the real content, maps and N-slot setup.
 test("simulation hashes match Node in this browser engine", async ({ page }) => {
-  const expected = runDetScenario();
+  const expected = { test: runDetScenario(), skirmish: runSkirmishDetScenario() };
   await page.goto("/?detcheck");
   const raw = await page.locator("html").getAttribute("data-detcheck");
   expect(raw).not.toBeNull();
-  expect(JSON.parse(raw ?? "[]")).toEqual(expected);
+  expect(JSON.parse(raw ?? "{}")).toEqual(expected);
 });

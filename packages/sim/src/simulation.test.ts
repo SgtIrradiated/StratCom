@@ -97,7 +97,7 @@ describe("Simulation movement", () => {
   it("moves 500 units across the hills without entering blocked cells", () => {
     const setup = createTestMatch(500, 5, 1);
     const sim = new Simulation(setup);
-    const grid = buildNavGrid(setup.terrain, setup.movementClasses[0]!.maxSlope);
+    const grid = buildNavGrid(setup.terrain, setup.ruleset.movementClasses[0]!.maxSlope);
     sim.step([{ t: "move", slot: 0, units: ids(500), to: { x: 1700, z: 1700 } }]);
     for (let t = 0; t < 3600; t++) {
       sim.step([]);
@@ -113,5 +113,31 @@ describe("Simulation movement", () => {
       if (Math.hypot(sim.state.x[i]! - 1700, sim.state.z[i]! - 1700) < 120) near++;
     }
     expect(near).toBeGreaterThan(250);
+  });
+
+  it("never moves structures, and pushes mobile units out of them", () => {
+    const base = createTestMatch(2, 11, 1);
+    const setup = {
+      ...base,
+      ruleset: {
+        movementClasses: base.ruleset.movementClasses,
+        units: [
+          ...base.ruleset.units,
+          { mobile: false, movementClass: -1, radius: 8, speed: 0, turnRate: 0 },
+        ],
+      },
+      initialUnits: [
+        { slot: 0, type: 2, x: 500, z: 500 },
+        { slot: 0, type: 0, x: 503, z: 500 },
+      ],
+    };
+    const sim = new Simulation(setup);
+    sim.step([{ t: "move", slot: 0, units: [(1 << 20) | 0], to: { x: 900, z: 900 } }]);
+    expect(sim.hasOrder(0)).toBe(false);
+    for (let i = 0; i < 30; i++) sim.step([]);
+    expect(sim.state.x[0]).toBe(500);
+    expect(sim.state.z[0]).toBe(500);
+    const d = Math.hypot(sim.state.x[1]! - 500, sim.state.z[1]! - 500);
+    expect(d).toBeGreaterThan(9.5);
   });
 });

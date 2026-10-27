@@ -34,4 +34,19 @@ describe("terrain", () => {
     expect(Math.abs((hit?.y ?? 0) - sampleHeight(t, hit?.x ?? 0, hit?.z ?? 0))).toBeLessThan(0.05);
     expect(raycastTerrain(t, [256, 300, 256], [0, 1, 0], 2000)).toBeUndefined();
   });
+
+  it("flattens plateaus and leaves terrain beyond the shoulder untouched", () => {
+    const flat = generateTerrain({ ...params, plateaus: [{ x: 200, z: 240, radius: 40 }] });
+    const plain = generateTerrain(params);
+    const centre = sampleHeight(flat, 200, 240);
+    for (const [x, z] of [
+      [170, 240],
+      [200, 210],
+      [224, 256],
+    ] as const) {
+      expect(sampleHeight(flat, x, z)).toBeCloseTo(centre, 4);
+    }
+    expect(sampleHeight(flat, 0, 0)).toBe(sampleHeight(plain, 0, 0));
+    expect(sampleHeight(flat, 500, 500)).toBe(sampleHeight(plain, 500, 500));
+  });
 });

@@ -3,10 +3,10 @@
  * these interfaces and never imports three.js directly (ADR-0004). That keeps a future
  * move to three's WebGPURenderer contained to this folder.
  */
+import type { IconShape } from "@stratcom/data";
 import type { SnapshotBuffers, Terrain } from "@stratcom/sim";
 
-/** Shape of the strategic-zoom icon for a unit type. */
-export type IconShape = "circle" | "square" | "triangle" | "diamond";
+export type { IconShape };
 
 /** How one unit type is drawn until real models exist. Indexed by the sim's unit type id. */
 export interface UnitVisual {
@@ -26,6 +26,8 @@ export interface SceneOptions {
   /** Maximum number of units that can be drawn (snapshot capacity). */
   maxUnits: number;
   terrain: Terrain;
+  /** CSS hex colour of selection rings; the local player's faction accent. */
+  selectionColor?: string;
 }
 
 /** A point on the ground plane, in metres. */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { runDetScenario } from "./detcheck";
+import { runDetScenario, runSkirmishDetScenario } from "./detcheck";
 
 const GOLDEN = [
   73055389, 233103841, 1917118027, 1625442706, 2533412041, 1043011867, 1324533923, 2414070983,
@@ -16,5 +16,14 @@ describe("runDetScenario", () => {
     // compatibility between builds. The e2e determinism spec compares browsers against the
     // same scenario run in Node.
     expect(runDetScenario()).toEqual(GOLDEN);
+  });
+});
+
+describe("runSkirmishDetScenario", () => {
+  it("is repeatable and the state actually evolves", () => {
+    const a = runSkirmishDetScenario();
+    expect(runSkirmishDetScenario()).toEqual(a);
+    expect(a).toHaveLength(7);
+    expect(new Set(a.slice(1)).size).toBe(6);
   });
 });

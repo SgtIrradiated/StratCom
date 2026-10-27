@@ -39,6 +39,7 @@ export class UnitLayer {
     playerColors: readonly string[],
     maxUnits: number,
     private readonly terrain: Terrain,
+    selectionColor?: string,
   ) {
     this.playerRgb = new Float32Array(playerColors.length * 3);
     const c = new Color();
@@ -65,7 +66,7 @@ export class UnitLayer {
       (m) => (m.instanceColor as InstancedBufferAttribute).array as Float32Array,
     );
     this.icons = new IconLayer(visuals, maxUnits);
-    this.rings = new SelectionRings(maxUnits);
+    this.rings = new SelectionRings(maxUnits, selectionColor);
     this.group.add(this.icons.group, this.rings.mesh);
   }
 

@@ -37,6 +37,11 @@ export class SimClient {
     this.send({ type: "commands", commands });
   }
 
+  /** Pauses or resumes the simulation clock. Snapshots stop while paused. */
+  setPaused(paused: boolean): void {
+    this.send({ type: "pause", paused });
+  }
+
   /** Returns a consumed snapshot to the worker so it can be refilled. */
   recycle(snapshot: SnapshotBuffers): void {
     this.send({ type: "recycle", snapshot }, snapshotTransferList(snapshot));

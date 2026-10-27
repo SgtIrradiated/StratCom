@@ -1,7 +1,7 @@
 import type { PlayerCommand } from "./commands";
 import { Prng } from "./math/prng";
 import { buildNavGrid, cellAt } from "./navigation";
-import type { MatchSetup } from "./simulation";
+import type { MatchSetup, SimRuleset } from "./simulation";
 import { generateTerrain, terrainDepth, terrainWidth } from "./terrain";
 
 /** Ground units cross slopes up to 0.6 (about 31°). */
@@ -9,9 +9,18 @@ export const TEST_MOVEMENT_CLASSES = [{ maxSlope: 0.6 }] as const;
 
 /** Placeholder unit types: a quick scout and a slow heavy. */
 export const TEST_UNIT_TYPES = [
-  { speed: 9, turnRate: 4, radius: 2, movementClass: 0 },
-  { speed: 5, turnRate: 2, radius: 3.5, movementClass: 0 },
+  { mobile: true, speed: 9, turnRate: 4, radius: 2, movementClass: 0 },
+  { mobile: true, speed: 5, turnRate: 2, radius: 3.5, movementClass: 0 },
 ] as const;
+
+/**
+ * A minimal two-type ruleset for tests, benchmarks and the determinism check. It stays
+ * fixed so the pinned determinism hashes don't move whenever game content is rebalanced.
+ */
+export const TEST_RULESET: SimRuleset = {
+  movementClasses: TEST_MOVEMENT_CLASSES,
+  units: TEST_UNIT_TYPES,
+};
 
 /**
  * Builds a deterministic stress scenario: `unitCount` units split across `playerCount`
@@ -55,8 +64,7 @@ export function createTestMatch(unitCount: number, seed = 1, playerCount = 2): M
     seed,
     terrain,
     players,
-    movementClasses: TEST_MOVEMENT_CLASSES,
-    unitTypes: TEST_UNIT_TYPES,
+    ruleset: TEST_RULESET,
     initialUnits,
   };
 }

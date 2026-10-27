@@ -32,7 +32,20 @@ export interface TerrainParams {
   amplitude: number;
   /** Wavelength of the lowest-frequency octave, in metres. */
   wavelength: number;
+  /** Areas flattened to their centre height, e.g. base sites around start positions. */
+  plateaus?: readonly Plateau[];
 }
+
+/** A flat disc of terrain with a smooth shoulder; positions and sizes in metres. */
+export interface Plateau {
+  x: number;
+  z: number;
+  /** Fully flat inside this radius. */
+  radius: number;
+}
+
+/** Width of the blend zone outside a plateau, as a fraction of its radius. */
+const PLATEAU_SHOULDER = 0.75;
 
 /** Integer lattice hash to [0, 1). Pure 32-bit integer maths. */
 function lattice(ix: number, iz: number, seed: number): number {
@@ -82,7 +95,30 @@ export function generateTerrain(p: TerrainParams): Terrain {
       heights[r * cols + c] = Math.fround((sum / total) * p.amplitude);
     }
   }
+  for (const plateau of p.plateaus ?? []) flatten(heights, cols, p.cellSize, plateau);
   return { cols, rows: cols, cellSize: p.cellSize, heights };
+}
+
+/** Pulls heights toward the plateau centre's height, fully inside the radius. */
+function flatten(heights: Float32Array, cols: number, cellSize: number, p: Plateau): void {
+  const cc = Math.min(Math.max(Math.round(p.x / cellSize), 0), cols - 1);
+  const cr = Math.min(Math.max(Math.round(p.z / cellSize), 0), cols - 1);
+  const target = heights[cr * cols + cc] ?? 0;
+  const shoulder = p.radius * PLATEAU_SHOULDER;
+  const outer = p.radius + shoulder;
+  const span = Math.ceil(outer / cellSize);
+  for (let r = Math.max(cr - span, 0); r <= Math.min(cr + span, cols - 1); r++) {
+    for (let c = Math.max(cc - span, 0); c <= Math.min(cc + span, cols - 1); c++) {
+      const dx = c * cellSize - p.x;
+      const dz = r * cellSize - p.z;
+      const d = Math.sqrt(dx * dx + dz * dz);
+      if (d >= outer) continue;
+      const i = r * cols + c;
+      const t = d <= p.radius ? 0 : (d - p.radius) / shoulder;
+      const keep = t * t * (3 - 2 * t);
+      heights[i] = Math.fround(target + ((heights[i] ?? 0) - target) * keep);
+    }
+  }
 }
 
 /** Bilinearly interpolated ground height at (`x`, `z`). Positions are clamped to the map. */

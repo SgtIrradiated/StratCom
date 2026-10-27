@@ -10,6 +10,7 @@ export type { PlayerCommand, Vec2 } from "./commands";
 export { MAX_ENTITIES, World, entityGeneration, entityIndex, type EntityId } from "./ecs/index";
 export {
   TEST_MOVEMENT_CLASSES,
+  TEST_RULESET,
   TEST_UNIT_TYPES,
   createTestMatch,
   scriptedCommands,
@@ -33,9 +34,11 @@ export {
   sampleHeight,
   terrainDepth,
   terrainWidth,
+  type Plateau,
   type Terrain,
   type TerrainParams,
 } from "./terrain";
+export { createSkirmishSetup, generateMapTerrain, type SkirmishOptions } from "./skirmish";
 export {
   Simulation,
   TICK_MS,
@@ -44,7 +47,8 @@ export {
   type MovementClassDef,
   type MatchSetup,
   type PlayerSetup,
+  type SimRuleset,
   type UnitTypeStats,
 } from "./simulation";
-export { DET_TICKS, runDetScenario } from "./detcheck";
+export { DET_TICKS, SKIRMISH_DET_TICKS, runDetScenario, runSkirmishDetScenario } from "./detcheck";
 export { createSnapshotBuffers, snapshotTransferList, type SnapshotBuffers } from "./snapshot";

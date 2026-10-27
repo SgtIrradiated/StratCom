@@ -33,7 +33,25 @@ function shapeGeometry(shape: IconShape): BufferGeometry {
       s.moveTo(0, 1.3).lineTo(1.3, 0).lineTo(0, -1.3).lineTo(-1.3, 0).closePath();
       return new ShapeGeometry(s);
     }
+    case "star":
+      // Commanders: larger than everything else so they are easy to find.
+      return polygonGeometry(10, (i) => (i % 2 === 0 ? 2 : 0.85));
+    case "hexagon":
+      return polygonGeometry(6, () => 1.35);
   }
+}
+
+/** A closed polygon with `n` vertices, the first pointing up, at radius `radius(i)`. */
+function polygonGeometry(n: number, radius: (i: number) => number): BufferGeometry {
+  const s = new Shape();
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    const r = radius(i);
+    if (i === 0) s.moveTo(Math.sin(a) * r, Math.cos(a) * r);
+    else s.lineTo(Math.sin(a) * r, Math.cos(a) * r);
+  }
+  s.closePath();
+  return new ShapeGeometry(s);
 }
 
 /**

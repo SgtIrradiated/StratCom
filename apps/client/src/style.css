@@ -1,6 +1,6 @@
 /*
- * Base styles plus the M0 boot overlay. Real HUD skins (terminal-clean / terminal-rust)
- * arrive with the faction-select screen in M3.
+ * Base page styles, the boot-error panel, the bench panel and the selection box. Menus, HUD
+ * and faction skins live in styles/terminal.css.
  */
 :root {
   --phosphor: #4cff7a;
@@ -89,9 +89,10 @@ body {
   pointer-events: none;
 }
 
+/* Follows the local faction's phosphor colour, which App mirrors onto :root. */
 .select-box {
   position: fixed;
-  border: 1px solid #7dff9a;
-  background: rgb(125 255 154 / 12%);
+  border: 1px solid var(--phosphor);
+  background: color-mix(in srgb, var(--phosphor) 12%, transparent);
   pointer-events: none;
 }

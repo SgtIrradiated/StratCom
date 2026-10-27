@@ -1,6 +1,6 @@
 # StratCom Roadmap
 
-_Last updated: 2026-10-27, M1 implemented (exit criteria partly pending)._
+_Last updated: 2026-10-27, M3 implemented (M1/M2 exit criteria partly pending)._
 
 This roadmap reflects the decisions from [PLAN.md §12](PLAN.md#12-decisions):
 
@@ -64,8 +64,9 @@ interpolated units on screen.
 
 - ✅ Sim under 25 ms per tick: 0.29 ms average in Node and 0.37 ms in the Chromium worker at 2,000 units ([performance.md](performance.md)).
 - ⏳ 60 fps: needs a `/?bench=2000` run on a machine with a GPU.
-- ⏳ Hashes across 4 runtimes: Node and Chromium verified locally (identical); Firefox and WebKit run in
-  CI (`e2e/determinism.spec.ts`) and have not yet been run.
+- 🟡 Hashes across 4 runtimes: Node, Chromium and Firefox verified locally (identical, both
+  the test and the M3 skirmish scenario). WebKit runs in CI (`e2e/determinism.spec.ts`); it
+  could not launch locally (missing host libraries under WSL).
 - Deviation: the det-check is an e2e spec plus `?detcheck` page flag instead of a separate
   `tools/det-check` package. It needs no extra tooling.
 
@@ -95,23 +96,39 @@ sim tests (500 units cross the hills without entering blocked cells). Deviations
   assets exist (content track).
 - Still to do by eye: feel-tuning of camera speeds on real hardware, and a GPU fps check.
 
-## M3: Factions, units and game flow
+## ✅ M3: Factions, units and game flow (done)
 
 **Goal:** the faction selector and a real menu flow.
 
-- `UnitDef`/`WeaponDef` schemas, a ruleset compiler (string ids to numeric ids), and a ruleset hash
-- About 6 placeholder units per faction: commander, engineer, extractor, generator, factory,
-  and 1–2 combat units
-- Preact screens: Main Menu → **Skirmish Setup** (1v1: map, your faction and colour, AI
-  opponent's faction) → **Faction Select** → Loading → In-Game → Results
-- Skirmish Setup uses the **slot model** (`human | ai | open | closed`, faction, team, colour),
-  showing only a 1v1 layout for now
-- Terminal HUD skins: green phosphor for the Directorate, amber for the Scrapborn. Self-hosted
-  OFL fonts
-- `docs/content-authoring.md`: how to add a unit or a faction
+| Delivered                                                                                                                         | Where                                                     |
+| --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `UnitDef`, `WeaponDef`, `MovementClassDef`, `MapDef` schemas; `compileRuleset` (all problems at once, numeric ids, hash)          | `packages/data`, ADR-0009                                 |
+| Two content packs: Directorate (7 units, 3 weapons) and Scrapborn (8 units, 5 weapons); 3 movement classes; 3 skirmish maps       | `packages/data/src/factions`, `maps`                      |
+| `createSkirmishSetup`: N-slot setup, flattened start plateaus, commander + starting force on passable ground                      | `packages/sim/src/skirmish.ts`                            |
+| Structures in the sim: never move, never pushed; mobile units are pushed clear of them                                            | `packages/sim/src/simulation.ts`                          |
+| Preact screens: Main Menu → Skirmish Setup → Faction Select → Loading → In-Game → Results, as an explicit state machine           | `apps/client/src/screens`                                 |
+| Slot model (`human \| ai \| open \| closed`, faction, team, colour) with validation; 1v1 layout in the UI                         | `apps/client/src/game/skirmishConfig.ts`                  |
+| Terminal HUD skins (`terminal-clean` green, `terminal-rust` amber) driven by faction data; self-hosted OFL fonts                  | `apps/client/src/styles/terminal.css`                     |
+| HUD: status bar, selection panel (per-type groups, unit card), build options, pause menu (resume, surrender, quit), [C] commander | `apps/client/src/screens/InGame.tsx`                      |
+| Map preview from the real heightmap; rotating commander schematic                                                                 | `apps/client/src/ui`                                      |
+| `docs/content-authoring.md`                                                                                                       | `docs/`                                                   |
+| Determinism check extended to a real-content 4-player skirmish across engines (quality microstep)                                 | `packages/sim/src/detcheck.ts`, `e2e/determinism.spec.ts` |
 
-**Exit:** pick either faction, start a 1v1, and spawn the correct commander. The HUD is
-skinned for your faction.
+**Exit:** ✅ pick either faction, start a 1v1, and spawn the correct commander. The HUD is
+skinned for your faction. Covered by `e2e/flow.spec.ts` (Scrapborn: rust skin, Warboss
+spawned and selectable, surrender → results → menu) and `skirmish.test.ts` (each slot gets
+its own faction's commander on its start position, on every map).
+
+Deviations and notes:
+
+- **Placeholder starting force.** Each faction spawns its commander plus a few units from
+  `startingUnits`, so there is something to command before construction exists (M4).
+- **AI slots are dormant** until M6: the AI's units spawn but receive no orders.
+- **Resources are static** in the HUD (the faction's starting stores) until the M4 economy.
+  Build options are shown but disabled.
+- **Commander preview is a 2D wireframe schematic**, not a three.js model, to keep three.js
+  out of the menus (ADR-0004) and avoid a second WebGL context.
+- Fonts: VT323 (display) and Share Tech Mono (body), both SIL OFL 1.1, from `@fontsource`.
 
 ## M4: Economy and construction
 

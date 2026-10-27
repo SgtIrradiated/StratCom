@@ -33,6 +33,8 @@ const GROUP_DOUBLE_TAP_MS = 400;
  * group, 1–9 recalls it (twice to centre the camera), X stops.
  */
 export class InputController {
+  /** While false, every input except releasing held buttons is ignored (pause menu). */
+  enabled = true;
   private readonly keys = new Set<string>();
   private readonly box = document.createElement("div");
   private screenBuf = new Float32Array(0);
@@ -86,6 +88,7 @@ export class InputController {
 
   /** Applies held-key and screen-edge camera motion. Call once per frame. */
   update(dtSec: number): void {
+    if (!this.enabled) return;
     const cam = this.host.renderer.camera;
     const speed = cam.distance * PAN_SCREENS_PER_SECOND * dtSec;
     let right = 0;
@@ -151,6 +154,7 @@ export class InputController {
   }
 
   private onPointerDown(e: PointerEvent): void {
+    if (!this.enabled) return;
     this.mouse = { x: e.clientX, y: e.clientY };
     if (e.button === 0) {
       this.dragStart = this.local(e);
@@ -219,6 +223,7 @@ export class InputController {
   }
 
   private onDoubleClick(e: MouseEvent): void {
+    if (!this.enabled) return;
     const proj = this.project();
     if (!proj) return;
     const { snapshot, screen } = proj;
@@ -242,6 +247,7 @@ export class InputController {
 
   private onWheel(e: WheelEvent): void {
     e.preventDefault();
+    if (!this.enabled) return;
     const p = this.ndc(this.local(e));
     // Trackpads send many small deltas, mice a few large ones; both map to smooth zoom.
     const factor = Math.exp(Math.max(-200, Math.min(200, e.deltaY)) * 0.0022);
@@ -250,6 +256,7 @@ export class InputController {
 
   private onKeyDown(e: KeyboardEvent): void {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    if (!this.enabled) return;
     this.keys.add(e.code);
     const digit = /^Digit([1-9])$/.exec(e.code)?.[1];
     if (digit !== undefined) {

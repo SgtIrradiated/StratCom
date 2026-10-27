@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("client boots, renders a WebGL2 scene, and logs no errors", async ({ page }) => {
+test("client boots to the main menu and logs no errors", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (err) => errors.push(err.message));
   page.on("console", (msg) => {
@@ -9,8 +9,9 @@ test("client boots, renders a WebGL2 scene, and logs no errors", async ({ page }
 
   await page.goto("/");
 
-  // main.ts flips this after the first frame has been rendered.
+  // main.ts flips this once the menu is mounted.
   await expect(page.locator("html")).toHaveAttribute("data-boot", "ready");
+  await expect(page.locator("html")).toHaveAttribute("data-screen", "menu");
   await expect(page.locator("canvas#viewport")).toBeVisible();
   await expect(page.getByText("The Atomic Directorate")).toBeVisible();
   await expect(page.getByText("The Scrapborn Clans")).toBeVisible();

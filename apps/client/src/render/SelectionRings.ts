@@ -4,18 +4,20 @@ import { DynamicDrawUsage, InstancedMesh, MeshBasicMaterial, RingGeometry } from
 export class SelectionRings {
   readonly mesh: InstancedMesh;
   private readonly geometry = new RingGeometry(0.88, 1, 28);
-  private readonly material = new MeshBasicMaterial({
-    color: "#7dff9a",
-    transparent: true,
-    depthWrite: false,
-    polygonOffset: true,
-    polygonOffsetFactor: -2,
-    polygonOffsetUnits: -2,
-  });
+  private readonly material: MeshBasicMaterial;
   private readonly matrices: Float32Array;
   private n = 0;
 
-  constructor(maxUnits: number) {
+  /** @param color CSS colour of the rings. */
+  constructor(maxUnits: number, color = "#7dff9a") {
+    this.material = new MeshBasicMaterial({
+      color,
+      transparent: true,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+    });
     this.geometry.rotateX(-Math.PI / 2);
     this.mesh = new InstancedMesh(this.geometry, this.material, maxUnits);
     this.mesh.instanceMatrix.setUsage(DynamicDrawUsage);

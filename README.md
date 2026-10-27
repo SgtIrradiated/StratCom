@@ -54,6 +54,7 @@ e2e/              Playwright tests
 - [Architecture](docs/architecture.md): how the code is structured today
 - [Conventions](docs/conventions.md): code style, simulation rules, git, dependencies
 - [Architecture Decision Records](docs/adr/README.md)
+- [Content authoring](docs/content-authoring.md): adding units, factions and maps
 - [Deployment](docs/deployment.md): self-hosting with Docker and Caddy
 - [Contributing](CONTRIBUTING.md)
 
@@ -61,6 +62,11 @@ e2e/              Playwright tests
 
 Code: [GNU AGPL-3.0-or-later](LICENSE). If you run a modified StratCom server for others, you
 must offer them its source ([ADR-0008](docs/adr/0008-license.md)).
+
+Fonts: [VT323](https://fonts.google.com/specimen/VT323) (Peter Hull) and
+[Share Tech Mono](https://fonts.google.com/specimen/Share+Tech+Mono) (Carrois Apostrophe),
+both under the [SIL Open Font License 1.1](https://openfontlicense.org), self-hosted from the
+`@fontsource` packages.
 
 StratCom is an independent project inspired by the post-apocalyptic RTS and RPG genres. It is
 not affiliated with or endorsed by Bethesda, Gas Powered Games, or the Beyond All Reason

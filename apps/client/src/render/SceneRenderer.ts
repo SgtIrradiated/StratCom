@@ -58,6 +58,7 @@ export function createSceneRenderer(
     options.playerColors,
     options.maxUnits,
     options.terrain,
+    options.selectionColor,
   );
   scene.add(units.group);
 
@@ -101,6 +102,9 @@ export function createSceneRenderer(
       units.dispose();
       terrain.dispose();
       renderer.dispose();
+      // Free the GPU context now rather than whenever the browser garbage-collects it; each
+      // match gets a fresh canvas (see GameSession).
+      renderer.forceContextLoss();
     },
   };
 }

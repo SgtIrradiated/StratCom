@@ -1,0 +1,684 @@
+/*
+ * Terminal UI: menu screens, HUD and the two faction skins.
+ *
+ * Colours come from faction data through --phosphor and --accent (set by ui/theme.ts), so
+ * a new faction needs no CSS unless it introduces a new `uiSkin`:
+ *   .skin-terminal-clean  Directorate: green phosphor, clean chrome, fine double rules.
+ *   .skin-terminal-rust   Scrapborn: amber phosphor, hazard stripes, rusted plate.
+ * Fonts are self-hosted OFL faces (VT323, Share Tech Mono) bundled from @fontsource.
+ */
+
+.app {
+  --font-display: "VT323", var(--font-terminal);
+  --font-body: "Share Tech Mono", var(--font-terminal);
+  --dim: color-mix(in srgb, var(--phosphor) 55%, transparent);
+  --faint: color-mix(in srgb, var(--phosphor) 14%, transparent);
+  --panel-bg: rgb(6 10 8 / 86%);
+  --edge: 1px solid color-mix(in srgb, var(--phosphor) 70%, transparent);
+
+  position: fixed;
+  inset: 0;
+  color: var(--phosphor);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.45;
+  text-shadow: 0 0 3px color-mix(in srgb, var(--phosphor) 45%, transparent);
+  transition: color 0.25s;
+}
+
+.skin-terminal-rust {
+  --panel-bg:
+    radial-gradient(ellipse at 20% 0%, rgb(120 60 25 / 22%), transparent 60%),
+    radial-gradient(ellipse at 90% 100%, rgb(90 40 15 / 25%), transparent 55%), rgb(14 9 6 / 90%);
+  --edge: 2px solid color-mix(in srgb, var(--phosphor) 60%, #3a2410);
+}
+
+/* --- Screens ---------------------------------------------------------------------------- */
+
+.screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 2rem clamp(1rem, 4vw, 4rem);
+  overflow: auto;
+  pointer-events: auto;
+}
+
+/* Menu screens get the CRT backdrop; the HUD lets the 3D view show through. */
+.screen:not(.hud) {
+  background:
+    repeating-linear-gradient(to bottom, rgb(0 0 0 / 22%) 0 1px, transparent 1px 3px),
+    radial-gradient(
+      ellipse at 50% 40%,
+      color-mix(in srgb, var(--phosphor) 9%, #050806),
+      #020302 75%
+    );
+}
+
+.screen:not(.hud)::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 18vmin rgb(0 0 0 / 85%);
+}
+
+.skin-terminal-rust .screen:not(.hud) {
+  background:
+    repeating-linear-gradient(to bottom, rgb(0 0 0 / 25%) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse at 30% 30%, rgb(80 40 15 / 35%), transparent 60%),
+    radial-gradient(
+      ellipse at 50% 40%,
+      color-mix(in srgb, var(--phosphor) 7%, #0a0603),
+      #030201 75%
+    );
+}
+
+.screen-title,
+.game-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: normal;
+  letter-spacing: 0.25em;
+}
+
+.screen-title {
+  font-size: 2.2rem;
+}
+
+.skin-terminal-rust .screen-title {
+  padding-left: 0.6rem;
+  border-left: 0.5rem solid var(--accent);
+}
+
+.screen-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  margin-top: auto;
+}
+
+.screen-actions .term-button.primary {
+  margin-left: auto;
+}
+
+.muted {
+  color: var(--dim);
+}
+
+.small {
+  font-size: 0.85em;
+}
+
+/* --- Panels and controls ---------------------------------------------------------------- */
+
+.panel {
+  background: var(--panel-bg);
+  border: var(--edge);
+  box-shadow:
+    0 0 14px color-mix(in srgb, var(--phosphor) 14%, transparent),
+    inset 0 0 24px rgb(0 0 0 / 50%);
+}
+
+.skin-terminal-clean .panel {
+  outline: 1px solid var(--faint);
+  outline-offset: 3px;
+}
+
+.panel-title {
+  padding: 0.25rem 0.75rem;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  letter-spacing: 0.15em;
+  border-bottom: var(--edge);
+  background: var(--faint);
+}
+
+.skin-terminal-rust .panel-title {
+  color: #120a04;
+  text-shadow: none;
+  background: var(--phosphor);
+  border-bottom: 4px solid transparent;
+  border-image: repeating-linear-gradient(-45deg, #120a04 0 6px, var(--accent) 6px 12px) 4;
+}
+
+.panel-body {
+  padding: 0.75rem;
+}
+
+.term-button {
+  display: inline-flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0.45rem 1rem;
+  font: inherit;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--phosphor);
+  background: rgb(0 0 0 / 45%);
+  border: var(--edge);
+  cursor: pointer;
+  text-shadow: inherit;
+}
+
+.term-button:hover:not(:disabled),
+.term-button:focus-visible {
+  color: #050805;
+  text-shadow: none;
+  background: var(--phosphor);
+  outline: none;
+}
+
+.term-button.primary {
+  border-color: var(--accent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.term-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.term-button .hotkey {
+  font-size: 0.8em;
+  opacity: 0.7;
+}
+
+.list-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  background: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-shadow: inherit;
+}
+
+.list-item:hover,
+.list-item:focus-visible {
+  border-color: var(--dim);
+  outline: none;
+}
+
+.list-item.selected {
+  background: var(--faint);
+  border-color: var(--phosphor);
+}
+
+.list-item.selected .item-name::before {
+  content: "▶ ";
+}
+
+.item-meta {
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.1rem 0;
+  border-bottom: 1px dotted var(--faint);
+}
+
+.stat-label {
+  color: var(--dim);
+}
+
+.stat-value {
+  text-align: right;
+}
+
+.swatch {
+  width: 1.4rem;
+  height: 1.4rem;
+  padding: 0;
+  border: 2px solid rgb(0 0 0 / 60%);
+  cursor: pointer;
+}
+
+.swatch.selected {
+  outline: 2px solid var(--phosphor);
+  outline-offset: 2px;
+}
+
+.swatch:disabled {
+  cursor: not-allowed;
+  opacity: 0.2;
+}
+
+select {
+  padding: 0.2rem 0.4rem;
+  font: inherit;
+  color: var(--phosphor);
+  background: #050805;
+  border: var(--edge);
+}
+
+.log {
+  margin: 0.25rem 0 0.75rem;
+  padding: 0;
+  list-style: none;
+  white-space: pre-wrap;
+}
+
+.log li::before {
+  content: "> ";
+  color: var(--dim);
+}
+
+.notice,
+.problems {
+  padding: 0.5rem 0.75rem;
+  color: #ff6a5a;
+  border: 1px solid #ff6a5a;
+  background: rgb(60 10 5 / 60%);
+  text-shadow: none;
+}
+
+.problems {
+  margin: 0.5rem 0 0;
+  list-style: none;
+}
+
+/* --- Main menu --------------------------------------------------------------------------- */
+
+.main-menu {
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.game-title {
+  font-size: clamp(3.5rem, 10vw, 7rem);
+  line-height: 1;
+  text-shadow:
+    0 0 6px var(--phosphor),
+    0 0 24px color-mix(in srgb, var(--phosphor) 50%, transparent);
+}
+
+.subtitle {
+  letter-spacing: 0.3em;
+  color: var(--dim);
+}
+
+.menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 18rem;
+}
+
+.system-check {
+  max-width: 40rem;
+  font-size: 0.9rem;
+}
+
+/* --- Skirmish setup ---------------------------------------------------------------------- */
+
+.setup-grid {
+  display: grid;
+  grid-template-columns: minmax(16rem, 1fr) auto minmax(22rem, 1.4fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.map-preview {
+  display: block;
+  width: min(256px, 60vw);
+  image-rendering: pixelated;
+  border: var(--edge);
+}
+
+.slots {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.slots th {
+  padding-right: 0.6rem;
+  font-weight: normal;
+  text-align: left;
+  color: var(--dim);
+  border-bottom: var(--edge);
+}
+
+.slots td {
+  padding: 0.35rem 0.4rem 0.35rem 0;
+  vertical-align: middle;
+}
+
+.swatches {
+  display: flex;
+  gap: 0.35rem;
+}
+
+/* --- Faction select ---------------------------------------------------------------------- */
+
+.faction-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.faction-card {
+  display: flex;
+  flex: 1 1 18rem;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.9rem 1.1rem;
+  font: inherit;
+  text-align: left;
+  color: var(--phosphor);
+  background: rgb(0 0 0 / 55%);
+  border: var(--edge);
+  opacity: 0.6;
+  cursor: pointer;
+  transition:
+    opacity 0.2s,
+    box-shadow 0.2s;
+}
+
+.faction-card:hover,
+.faction-card:focus-visible {
+  opacity: 0.9;
+  outline: none;
+}
+
+.faction-card.selected {
+  opacity: 1;
+  box-shadow: 0 0 22px color-mix(in srgb, var(--phosphor) 40%, transparent);
+}
+
+.faction-card.skin-terminal-rust {
+  border-top: 6px solid transparent;
+  border-image: repeating-linear-gradient(-45deg, #120a04 0 8px, var(--accent) 8px 16px) 6;
+}
+
+.card-name {
+  font-family: var(--font-display);
+  font-size: 1.8rem;
+  letter-spacing: 0.08em;
+}
+
+.card-tagline {
+  font-style: italic;
+}
+
+.card-meta {
+  color: var(--dim);
+}
+
+.faction-detail {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1.1fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+.lore {
+  margin-top: 0;
+}
+
+.schematic {
+  margin: 0 0 0.5rem;
+  text-align: center;
+}
+
+.schematic canvas {
+  max-width: 100%;
+}
+
+.schematic figcaption {
+  font-size: 0.85em;
+  color: var(--dim);
+}
+
+.roster-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.roster-table td {
+  padding: 0.15rem 0.3rem;
+  border-bottom: 1px dotted var(--faint);
+}
+
+.roster-table .role {
+  color: var(--accent);
+}
+
+.roster-table .num {
+  text-align: right;
+  color: var(--dim);
+}
+
+.colour-pick {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+/* --- Loading ----------------------------------------------------------------------------- */
+
+.loading-screen {
+  justify-content: center;
+  align-items: center;
+}
+
+.loading-panel {
+  width: min(44rem, 100%);
+}
+
+.loading-title {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  letter-spacing: 0.1em;
+}
+
+.ok {
+  color: var(--accent);
+}
+
+.cursor-line::before {
+  content: "" !important;
+}
+
+.cursor {
+  animation: blink 1s steps(1) infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* --- Results ----------------------------------------------------------------------------- */
+
+.results-screen {
+  align-items: center;
+  justify-content: center;
+}
+
+.results-panel {
+  width: min(32rem, 100%);
+}
+
+.headline {
+  margin-bottom: 0.75rem;
+  font-family: var(--font-display);
+  font-size: 3rem;
+  letter-spacing: 0.3em;
+  text-align: center;
+}
+
+.results-screen .screen-actions {
+  margin-top: 0;
+}
+
+/* --- In-game HUD ------------------------------------------------------------------------- */
+
+.hud {
+  padding: 0.6rem;
+  pointer-events: none;
+}
+
+.hud .panel,
+.hud button {
+  pointer-events: auto;
+}
+
+.hud-top {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+  padding: 0.25rem 0.5rem 0.25rem 1rem;
+}
+
+.hud-faction {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  letter-spacing: 0.12em;
+}
+
+.hud-map {
+  color: var(--dim);
+}
+
+.hud-clock {
+  margin-left: auto;
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+}
+
+.hud-resources {
+  display: flex;
+  gap: 1rem;
+}
+
+.res.salvage::before {
+  content: "◆ ";
+  color: var(--accent);
+}
+
+.res.power::before {
+  content: "⚡ ";
+  color: var(--accent);
+}
+
+.hud-selection,
+.hud-orders {
+  position: absolute;
+  bottom: 0.6rem;
+  width: min(25rem, 42vw);
+  font-size: 0.9rem;
+}
+
+.hud-selection {
+  left: 0.6rem;
+}
+
+.hud-orders {
+  right: 0.6rem;
+}
+
+.unit-name {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+}
+
+.selection-groups {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.selection-groups .list-item {
+  justify-content: flex-start;
+}
+
+.selection-groups .count {
+  min-width: 2.5rem;
+  color: var(--accent);
+}
+
+.orders-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  margin-bottom: 0.4rem;
+}
+
+.order {
+  color: var(--dim);
+}
+
+.build-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.build-option {
+  min-height: 2.6rem;
+  padding: 0.25rem;
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--phosphor);
+  background: var(--faint);
+  border: 1px dashed var(--dim);
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.hud-hash {
+  position: absolute;
+  bottom: 0.2rem;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.pause-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 55%);
+  pointer-events: auto;
+  backdrop-filter: grayscale(0.7) blur(1px);
+}
+
+.pause-menu {
+  min-width: 20rem;
+}
+
+/* --- Small screens and motion ------------------------------------------------------------ */
+
+@media (width <= 1100px) {
+  .setup-grid,
+  .faction-detail {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cursor {
+    animation: none;
+  }
+
+  .app,
+  .faction-card {
+    transition: none;
+  }
+}

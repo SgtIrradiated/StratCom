@@ -1,6 +1,5 @@
 import { z } from "zod";
-
-const hexColor = z.string().regex(/^#[0-9a-f]{6}$/i, "expected a #rrggbb colour");
+import { ContentId, HexColor } from "./common";
 
 /**
  * Visual identity of a faction. Drives the faction-select screen, the HUD skin and the
@@ -8,23 +7,38 @@ const hexColor = z.string().regex(/^#[0-9a-f]{6}$/i, "expected a #rrggbb colour"
  */
 export const FactionTheme = z.object({
   /** Terminal text colour for this faction's UI (green or amber phosphor). */
-  phosphor: hexColor,
+  phosphor: HexColor,
   /** Highlight colour: buttons, selection rings, energy effects. */
-  accent: hexColor,
+  accent: HexColor,
   /** Dominant hull/armour colour used by placeholder meshes. */
-  base: hexColor,
+  base: HexColor,
   /** CSS skin applied to the HUD. New skins need a matching stylesheet in apps/client. */
   uiSkin: z.enum(["terminal-clean", "terminal-rust"]),
+  /**
+   * Player colours offered on the faction-select screen, in preference order. At least 8,
+   * so every slot of an 8-player match can get a distinct colour.
+   */
+  teamColors: z
+    .array(HexColor)
+    .min(8)
+    .refine((c) => new Set(c.map((x) => x.toLowerCase())).size === c.length, "duplicate colour"),
 });
 export type FactionTheme = z.infer<typeof FactionTheme>;
 
+/** Units placed next to the commander when a match starts. */
+export const StartingUnit = z.object({
+  /** Unit id; must belong to this faction. */
+  unit: ContentId,
+  count: z.number().int().min(1).max(20),
+});
+export type StartingUnit = z.infer<typeof StartingUnit>;
+
 /**
- * A playable faction. One file per faction under `src/factions/<id>/`.
- * Fields for rosters, starting units and economy modifiers are added in M3/M4.
+ * A playable faction. Each faction is a content pack under `src/factions/<id>/` with its
+ * faction, unit and weapon definitions. The roster is every unit whose `faction` is this id.
  */
 export const FactionDef = z.object({
-  /** Stable machine id (lowercase snake_case). Used in replays and the network protocol. */
-  id: z.string().regex(/^[a-z][a-z0-9_]*$/, "lowercase snake_case"),
+  id: ContentId,
   /** Display name, e.g. "The Atomic Directorate". */
   name: z.string().min(1),
   /** Short label for tight UI spots, e.g. "Directorate". */
@@ -33,8 +47,23 @@ export const FactionDef = z.object({
   tagline: z.string().min(1),
   /** Short lore paragraph shown on the faction-select screen. */
   lore: z.string().min(1),
-  /** Title of the faction's commander unit, e.g. "Overseer". */
+  /** Title of the faction's commander, e.g. "Overseer". */
   commanderTitle: z.string().min(1),
+  /** Unit id of the commander every player of this faction starts with. */
+  commanderUnit: ContentId,
+  /**
+   * Extra units spawned around the commander. Supreme Commander-style starts use only the
+   * commander; until construction arrives (M4) this gives each side something to command.
+   */
+  startingUnits: z.array(StartingUnit).default([]),
+  /** Stored resources at tick 0. */
+  startingResources: z.object({
+    salvage: z.number().min(0),
+    power: z.number().min(0),
+  }),
   theme: FactionTheme,
 });
+/** A validated faction (defaults applied). */
 export type FactionDef = z.infer<typeof FactionDef>;
+/** A faction as authored, before defaults are applied. */
+export type FactionInput = z.input<typeof FactionDef>;

@@ -10,6 +10,8 @@ const crossOriginIsolation = {
 const SERVER = "http://127.0.0.1:8080";
 
 export default defineConfig({
+  // Preact's automatic JSX runtime for the menu screens and HUD (src/screens, src/ui).
+  oxc: { jsx: { runtime: "automatic", importSource: "preact" } },
   build: {
     target: "es2023",
     sourcemap: true,

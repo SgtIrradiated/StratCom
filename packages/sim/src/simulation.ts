@@ -30,9 +30,11 @@ export interface MovementClassDef {
   maxSlope: number;
 }
 
-/** Movement characteristics of one unit type (M1/M2 placeholder; replaced by `UnitDef` in M3). */
+/** What the simulation needs to know about one unit type. */
 export interface UnitTypeStats {
-  /** Index into `MatchSetup.movementClasses`. */
+  /** False for structures: they never move and are not pushed by separation. */
+  mobile: boolean;
+  /** Index into `SimRuleset.movementClasses`; ignored (conventionally -1) when immobile. */
   movementClass: number;
   /** Collision radius in metres, used for separation. */
   radius: number;
@@ -40,6 +42,15 @@ export interface UnitTypeStats {
   speed: number;
   /** Maximum turn rate in radians per second. */
   turnRate: number;
+}
+
+/**
+ * The rules the simulation runs on, indexed by numeric id. `CompiledRuleset` from
+ * `@stratcom/data` satisfies this; tests and benchmarks can pass a minimal literal.
+ */
+export interface SimRuleset {
+  movementClasses: readonly MovementClassDef[];
+  units: readonly UnitTypeStats[];
 }
 
 /** One player slot. Slots and teams are N-wide; nothing assumes two players. */
@@ -54,6 +65,7 @@ export interface PlayerSetup {
 /** A unit present at tick 0. */
 export interface InitialUnit {
   slot: number;
+  /** Unit type id: an index into `SimRuleset.units`. */
   type: number;
   x: number;
   z: number;
@@ -66,8 +78,7 @@ export interface MatchSetup {
   /** Ground heightmap; also defines the map extent in metres. */
   terrain: Terrain;
   players: readonly PlayerSetup[];
-  movementClasses: readonly MovementClassDef[];
-  unitTypes: readonly UnitTypeStats[];
+  ruleset: SimRuleset;
   initialUnits: readonly InitialUnit[];
   /** Entity capacity; defaults to the initial unit count plus 4096. */
   capacity?: number;
@@ -101,7 +112,9 @@ export class Simulation {
     const capacity = setup.capacity ?? setup.initialUnits.length + 4096;
     this.world = new World(capacity);
     this.prng = new Prng(setup.seed);
-    this.navGrids = setup.movementClasses.map((m) => buildNavGrid(setup.terrain, m.maxSlope));
+    this.navGrids = setup.ruleset.movementClasses.map((m) =>
+      buildNavGrid(setup.terrain, m.maxSlope),
+    );
     this.spatial = new SpatialGrid(
       terrainWidth(setup.terrain),
       terrainDepth(setup.terrain),
@@ -115,7 +128,7 @@ export class Simulation {
     assert(slots.size === setup.players.length, "duplicate player slots");
     for (const u of setup.initialUnits) {
       assert(slots.has(u.slot), `initial unit for unknown slot ${u.slot}`);
-      assert(setup.unitTypes[u.type] !== undefined, `unknown unit type ${u.type}`);
+      assert(setup.ruleset.units[u.type] !== undefined, `unknown unit type ${u.type}`);
       this.world.spawn({ type: u.type, owner: u.slot, x: u.x, z: u.z, heading: u.heading ?? 0 });
     }
   }
@@ -197,13 +210,13 @@ export class Simulation {
         const owned = new Set<number>();
         for (const id of cmd.units) {
           const i = w.resolve(id);
-          if (i >= 0 && w.owner[i] === cmd.slot) owned.add(i);
+          if (i >= 0 && w.owner[i] === cmd.slot && this.isMobile(i)) owned.add(i);
         }
         // One flow field per movement class, shared by every unit of that class.
         const slots = [...owned].sort((a, b) => a - b);
         const perClass = new Map<number, FlowField | undefined>();
         for (const i of slots) {
-          const mc = this.setup.unitTypes[w.type[i] ?? 0]?.movementClass ?? 0;
+          const mc = this.setup.ruleset.units[w.type[i] ?? 0]?.movementClass ?? 0;
           if (!perClass.has(mc)) perClass.set(mc, this.makeField(mc, tx, tz, slots.length));
           this.fields[i] = perClass.get(mc);
         }
@@ -243,7 +256,7 @@ export class Simulation {
   /** Steps 2–4: follow flow fields. Units stop in a disc whose size grows with the group. */
   private movement(): void {
     const w = this.world;
-    const types = this.setup.unitTypes;
+    const types = this.setup.ruleset.units;
     const dt = 1 / TICK_RATE;
     for (let i = 0; i < w.highWater; i++) {
       if (w.alive[i] === 0) continue;
@@ -300,34 +313,42 @@ export class Simulation {
     }
   }
 
-  /** Step 4 (cont.): push overlapping units apart using the spatial hash. */
+  /**
+   * Step 4 (cont.): push overlapping units apart using the spatial hash. Two mobile units
+   * each take half of the overlap; a mobile unit against a structure takes all of it, and
+   * structures never move.
+   */
   private separation(): void {
     const w = this.world;
-    const types = this.setup.unitTypes;
+    const types = this.setup.ruleset.units;
     this.spatial.rebuild(w.highWater, w.alive, w.x, w.z, this.bucketScratch);
     for (let i = 0; i < w.highWater; i++) {
       this.sepX[i] = 0;
       this.sepZ[i] = 0;
       if (w.alive[i] === 0) continue;
-      const ri = types[w.type[i] ?? 0]?.radius ?? 1;
+      const ti = types[w.type[i] ?? 0];
+      if (ti?.mobile === false) continue;
+      const ri = ti?.radius ?? 1;
       const xi = w.x[i] ?? 0;
       const zi = w.z[i] ?? 0;
       let px = 0;
       let pz = 0;
       this.spatial.forNeighbours(xi, zi, (j) => {
         if (j === i) return;
-        const reach = ri + (types[w.type[j] ?? 0]?.radius ?? 1);
+        const tj = types[w.type[j] ?? 0];
+        const reach = ri + (tj?.radius ?? 1);
         const dx = xi - (w.x[j] ?? 0);
         const dz = zi - (w.z[j] ?? 0);
         const d2 = dx * dx + dz * dz;
         if (d2 >= reach * reach) return;
+        const share = tj?.mobile === false ? 1 : 0.5;
         if (d2 === 0) {
           // Exactly stacked: split along x, with opposite signs for the pair.
-          px += (i < j ? 1 : -1) * reach * 0.5;
+          px += (i < j ? 1 : -1) * reach * share;
           return;
         }
         const d = Math.sqrt(d2);
-        const push = ((reach - d) * 0.5) / d;
+        const push = ((reach - d) * share) / d;
         px += dx * push;
         pz += dz * push;
       });
@@ -342,13 +363,17 @@ export class Simulation {
     }
   }
 
+  private isMobile(i: number): boolean {
+    return this.setup.ruleset.units[this.world.type[i] ?? 0]?.mobile === true;
+  }
+
   /**
    * Moves a unit to (`nx`, `nz`) if that is on the map and passable, otherwise tries to slide
    * along one axis, otherwise stays put.
    */
   private tryMove(i: number, nx: number, nz: number): void {
     const w = this.world;
-    const mc = this.setup.unitTypes[w.type[i] ?? 0]?.movementClass ?? 0;
+    const mc = this.setup.ruleset.units[w.type[i] ?? 0]?.movementClass ?? 0;
     const grid = this.navGrids[mc];
     if (!grid) return;
     const maxX = terrainWidth(this.setup.terrain);

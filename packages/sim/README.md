@@ -17,7 +17,10 @@ multiplayer, replays, and desync detection all rely on this property.
 | `detcheck` — cross-runtime determinism scenario  | ✅ M1 (`e2e/determinism.spec.ts`)       |
 | `terrain` — heightmap, height sampling, raycast  | ✅ M2                                   |
 | `navigation` — nav grids, flow fields, LOS       | ✅ M2 (one field per move command)      |
-| `spatialGrid` + separation steering              | ✅ M2                                   |
+| `spatialGrid` + separation steering              | ✅ M2; structures never move (M3)       |
+| `SimRuleset` — rules by numeric id               | ✅ M3 (ADR-0009)                        |
+| `skirmish` — `createSkirmishSetup`, map plateaus | ✅ M3                                   |
+| `runSkirmishDetScenario` — real-content detcheck | ✅ M3 (4 players, all movement classes) |
 | Economy, combat, fog                             | M4+ (see `docs/ROADMAP.md`)             |
 
 ## Rules (enforced by ESLint and `tsconfig.json`)
@@ -41,12 +44,27 @@ import { Prng } from "@stratcom/sim/math"; // math only
 ## Using the simulation
 
 ```ts
-const sim = new Simulation(setup); // MatchSetup: seed, map, N player slots, unit types, units
+const setup = createSkirmishSetup({
+  seed,
+  map: getMap("ashfall_basin"),
+  ruleset: RULESET,
+  players,
+});
+const sim = new Simulation(setup); // MatchSetup: seed, terrain, N player slots, ruleset, units
 sim.step(commands); // exactly one tick; commands are validated, never trusted
 sim.stateHash(); // 32-bit hash of the full state (desync detection)
 sim.writeSnapshot(buffers); // fills reusable typed arrays for the renderer
 ```
 
+`createSkirmishSetup` turns lobby settings into a `MatchSetup`: it generates the map with
+flattened start plateaus and spawns each player's commander and starting force. It is pure,
+so every peer derives the same setup.
+
 `createTestMatch(n)` and `scriptedCommands()` build the stress scenario used by tests,
-`?bench=N` and the determinism check. If `detcheck.test.ts` fails after a sim change, the
+`?bench=N` and the determinism check. It runs on the fixed `TEST_RULESET`, so content
+rebalances never move the pinned hashes. If `detcheck.test.ts` fails after a sim change, the
 change altered simulation behaviour: update the pinned hashes only if that is intended.
+
+## Dependencies
+
+`@stratcom/shared`, and `@stratcom/data` for content types and the skirmish scenario.

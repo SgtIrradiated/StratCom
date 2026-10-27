@@ -202,6 +202,12 @@ importers:
 
   apps/client:
     dependencies:
+      '@fontsource/share-tech-mono':
+        specifier: ^5.3.0
+        version: 5.3.0
+      '@fontsource/vt323':
+        specifier: ^5.3.0
+        version: 5.3.0
       '@stratcom/data':
         specifier: workspace:*
         version: link:../../packages/data
@@ -211,6 +217,9 @@ importers:
       '@stratcom/sim':
         specifier: workspace:*
         version: link:../../packages/sim
+      preact:
+        specifier: ^11.0.2
+        version: 11.0.2
       three:
         specifier: ^0.186.1
         version: 0.186.1
@@ -266,6 +275,9 @@ importers:
 
   packages/sim:
     dependencies:
+      '@stratcom/data':
+        specifier: workspace:*
+        version: link:../data
       '@stratcom/shared':
         specifier: workspace:*
         version: link:../shared
@@ -502,6 +514,12 @@ packages:
 
   '@fastify/static@10.1.5':
     resolution: {integrity: sha512-3r0ZFXo82nKlPzySOUYhwWVfPZStfiwjmyevkX7cJWL2yXmEzl0Rpxv+L6L1R4OxqvlDGqf3g8OdBzILKgqe6w==}
+
+  '@fontsource/share-tech-mono@5.3.0':
+    resolution: {integrity: sha512-hVEzVCzEid/fBfhggMyvkfDzn9ODrMihxC0EiOeQK3BuQNvdjmith2ERnoDNUkbW8zhufbKNuCgaSoT8LUNpuQ==}
+
+  '@fontsource/vt323@5.3.0':
+    resolution: {integrity: sha512-3w33Rg/0+R1587HQfz4t7Q7e0GGeCqr3wmzIwqdGInUnrGEwMA5eX39GP4Z9wpTQnwfhVOhYuxuRwRUeIcicbw==}
 
   '@humanfs/core@0.19.2':
     resolution: {integrity: sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA==}
@@ -1265,6 +1283,14 @@ packages:
     resolution: {integrity: sha512-RRuzqDtt5Y9h3quz5hWhK+TPnsmVs6WwSU6LkJMeY4HstUEDuYTG8UJSdawMRzmzAtV+KEoG8N3Qg2qLy5vM/A==}
     engines: {node: ^10 || ^12 || >=14}
 
+  preact@11.0.2:
+    resolution: {integrity: sha512-ofG+Lqznbt13JKDjdWPLTo5ONBqcNgidqnLRzJBG6PZjzGXOLRd5y9r448+HUofTyDbgKWVrPhHP0IgcxEZslQ==}
+    peerDependencies:
+      preact-render-to-string: '>=6.7.0'
+    peerDependenciesMeta:
+      preact-render-to-string:
+        optional: true
+
   prelude-ls@1.2.1:
     resolution: {integrity: sha512-vkcDPrRZo1QZLbn5RLGPpg/WmIQ65qoWWhcGKf/b5eplkkarX0m9z8ppCat4mlOqUsWpyNuYgO3VRyrYHSzX5g==}
     engines: {node: '>= 0.8.0'}
@@ -1707,6 +1733,10 @@ snapshots:
       fastify-plugin: 6.0.0
       fastq: 1.20.3
       glob: 13.0.6
+
+  '@fontsource/share-tech-mono@5.3.0': {}
+
+  '@fontsource/vt323@5.3.0': {}
 
   '@humanfs/core@0.19.2':
     dependencies:
@@ -2444,6 +2474,8 @@ snapshots:
       nanoid: 3.3.19
       picocolors: 1.1.1
       source-map-js: 1.2.2
+
+  preact@11.0.2: {}
 
   prelude-ls@1.2.1: {}
 

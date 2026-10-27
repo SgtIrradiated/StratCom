@@ -10,8 +10,9 @@ structure changes.
 apps/client      Browser client (Vite + three.js). Deployable.
 apps/server      Node server (Fastify). Deployable. Serves the client build.
 packages/shared  Dependency-free utilities (assert, Brand).
-packages/sim     Deterministic simulation: ECS world, Simulation, math. No DOM/Node/renderer.
-packages/data    Content definitions + zod schemas (factions today).
+packages/sim     Deterministic simulation: ECS world, Simulation, skirmish setup, math.
+                 No DOM/Node/renderer.
+packages/data    Content: zod schemas, faction content packs, maps, ruleset compiler.
 ```
 
 Libraries are consumed as TypeScript source and have no build step (ADR-0001).
@@ -38,18 +39,39 @@ Enforced by `no-restricted-imports` in `eslint.config.js`. An arrow means "may i
 | `apps/server`                        | three, preact                                                                                      |
 | `packages/*`                         | `@stratcom/client`, `@stratcom/server`                                                             |
 
-## Runtime: current (M2)
+## Content pipeline (M3)
 
 ```
-Main thread                                      Sim Worker (apps/client/src/sim)
-┌──────────────────────────────────────┐ commands ┌───────────────────────────────┐
-│ main.ts                              │ ───────▶ │ simWorker.ts                  │
-│  ├─ sim/SimClient                    │          │  └─ @stratcom/sim Simulation  │
-│  ├─ render/ Terrain+Unit+Icon layers │ ◀─────── │     fixed 20 Hz, step()       │
-│  ├─ input/ InputController+Selection │ snapshots│
-│  └─ bench/StatsPanel (?bench=N)      │          │     writeSnapshot() → transfer│
-└──────────────────────────────────────┘ (3 recycled buffer sets, transferred)
+factions/<id>/{faction,units}.ts ─┐
+movement.ts, maps/index.ts ───────┼─▶ compileRuleset() ─▶ RULESET (numeric ids + hash)
+                                  │        zod + cross-references, all problems at once
+                                  ▼
+Skirmish config (slots, map) ─▶ createSkirmishSetup() ─▶ MatchSetup ─▶ Simulation
+                                  terrain + plateaus, commander + starting force per slot
 ```
+
+The sim reads rules through the structural `SimRuleset` interface (ADR-0009), so tests and
+the pinned determinism scenario can use a tiny fixed ruleset.
+
+## Runtime: current (M3)
+
+```
+Main thread                                         Sim Worker (apps/client/src/sim)
+┌─────────────────────────────────────────┐ commands ┌───────────────────────────────┐
+│ main.ts → screens/App (Preact)          │ ───────▶ │ simWorker.ts                  │
+│  ├─ screens/router.ts  menu → setup →   │          │  └─ @stratcom/sim Simulation  │
+│  │   faction → loading → game → results │ ◀─────── │     fixed 20 Hz, step()       │
+│  └─ game/GameSession (one per match)    │ snapshots│     writeSnapshot() → transfer│
+│      ├─ sim/SimClient                   │          └───────────────────────────────┘
+│      ├─ render/ Terrain+Unit+Icon layers│  (3 recycled buffer sets, transferred)
+│      └─ input/ InputController+Selection│
+│  InGame HUD reads the session; orders go through input as commands │
+└─────────────────────────────────────────┘
+```
+
+Each `GameSession` creates a fresh canvas and releases its WebGL context on dispose, so a
+second match never reuses a lost context. `?bench=N` starts a session directly, skipping
+the menus.
 
 The renderer interpolates each unit between `prev` and current position in a single snapshot
 (`alpha` = time since the snapshot arrived ÷ tick length). Snapshot buffers are returned to the

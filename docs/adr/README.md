@@ -14,6 +14,7 @@ old one, and update the old one's status line.
 | [0006](0006-data-driven-content.md)            | Data-driven content validated with zod      | Accepted                        |
 | [0007](0007-simulation-tick-rate.md)           | 20 Hz simulation tick, 2-tick network turns | Accepted                        |
 | [0008](0008-license.md)                        | AGPL-3.0-or-later for code                  | Accepted                        |
+| [0009](0009-ruleset-compiler-and-hash.md)      | Ruleset compiler, numeric ids and hash      | Accepted (implemented in M3)    |
 
 ## Writing a new ADR
 
