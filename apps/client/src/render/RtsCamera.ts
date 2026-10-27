@@ -44,9 +44,10 @@ export class RtsCamera implements CameraControl {
   pan(right: number, forward: number): void {
     const sin = Math.sin(this.yaw);
     const cos = Math.cos(this.yaw);
-    // Forward on the ground is (sin yaw, cos yaw); right is (cos yaw, -sin yaw).
-    this.target.x += right * cos + forward * sin;
-    this.target.z += -right * sin + forward * cos;
+    // Forward on the ground is (sin yaw, cos yaw). three.js is right-handed with +y up, so
+    // screen-right is forward × up = (-cos yaw, sin yaw): at yaw 0, +x is on the left.
+    this.target.x += -right * cos + forward * sin;
+    this.target.z += right * sin + forward * cos;
     this.apply();
   }
 
