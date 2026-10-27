@@ -8,12 +8,40 @@
 export * from "./math/index";
 export type { PlayerCommand, Vec2 } from "./commands";
 export { MAX_ENTITIES, World, entityGeneration, entityIndex, type EntityId } from "./ecs/index";
-export { TEST_UNIT_TYPES, createTestMatch, scriptedCommands } from "./scenario";
+export {
+  TEST_MOVEMENT_CLASSES,
+  TEST_UNIT_TYPES,
+  createTestMatch,
+  scriptedCommands,
+} from "./scenario";
+export {
+  NEIGHBOURS,
+  UNREACHABLE,
+  buildNavGrid,
+  cellAt,
+  computeFlowCosts,
+  flowDirection,
+  hasLineOfSight,
+  nearestPassable,
+  type FlowField,
+  type NavGrid,
+} from "./navigation";
+export { SpatialGrid } from "./spatialGrid";
+export {
+  generateTerrain,
+  raycastTerrain,
+  sampleHeight,
+  terrainDepth,
+  terrainWidth,
+  type Terrain,
+  type TerrainParams,
+} from "./terrain";
 export {
   Simulation,
   TICK_MS,
   TICK_RATE,
   type InitialUnit,
+  type MovementClassDef,
   type MatchSetup,
   type PlayerSetup,
   type UnitTypeStats,

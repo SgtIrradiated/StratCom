@@ -38,10 +38,6 @@ export class World {
   readonly prevX: Float64Array;
   readonly prevZ: Float64Array;
   readonly heading: Float64Array;
-  /** Current move target; meaningful only where `hasTarget[i] === 1`. */
-  readonly targetX: Float64Array;
-  readonly targetZ: Float64Array;
-  readonly hasTarget: Uint8Array;
 
   private readonly freeList: number[] = [];
 
@@ -57,9 +53,6 @@ export class World {
     this.prevX = new Float64Array(capacity);
     this.prevZ = new Float64Array(capacity);
     this.heading = new Float64Array(capacity);
-    this.targetX = new Float64Array(capacity);
-    this.targetZ = new Float64Array(capacity);
-    this.hasTarget = new Uint8Array(capacity);
   }
 
   /** Creates an entity and returns its id. Throws if the world is full. */
@@ -76,7 +69,6 @@ export class World {
     this.x[i] = this.prevX[i] = params.x;
     this.z[i] = this.prevZ[i] = params.z;
     this.heading[i] = params.heading ?? 0;
-    this.hasTarget[i] = 0;
     this.liveCount++;
     return makeEntityId(i, gen);
   }
@@ -116,9 +108,7 @@ export class World {
         .u32(this.owner[i] ?? 0)
         .f64(this.x[i] ?? 0)
         .f64(this.z[i] ?? 0)
-        .f64(this.heading[i] ?? 0)
-        .u32(this.hasTarget[i] ?? 0);
-      if (this.hasTarget[i] === 1) h.f64(this.targetX[i] ?? 0).f64(this.targetZ[i] ?? 0);
+        .f64(this.heading[i] ?? 0);
     }
   }
 }
