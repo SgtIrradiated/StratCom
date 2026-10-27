@@ -16,6 +16,7 @@ import {
   type BuildOption,
 } from "../game/hudModel";
 import { localSlot, type SkirmishConfig } from "../game/skirmishConfig";
+import { Minimap } from "../ui/Minimap";
 import { Panel, StatRow, TermButton } from "../ui/components";
 import type { MatchResult } from "./router";
 
@@ -42,6 +43,7 @@ export function InGame(props: {
   const me = localSlot(config);
   const faction = getFaction(config.slots[me]?.factionId ?? "");
   const compiled = rulesetFaction(RULESET, faction.id);
+  const commander = RULESET.units[compiled.commanderUnit];
   const map = getMap(config.mapId);
   const ended = useRef(false);
   const onEnd = props.onEnd;
@@ -120,6 +122,12 @@ export function InGame(props: {
 
   return (
     <div class="screen hud" data-testid="hud">
+      <Minimap
+        session={session}
+        phosphor={faction.theme.phosphor}
+        maxSlope={RULESET.movementClasses[commander?.movementClass ?? 0]?.maxSlope ?? 0.6}
+        playerColors={config.slots.map((s) => s.color)}
+      />
       <header class="hud-top panel">
         <span class="hud-faction">
           {faction.shortName.toUpperCase()} // {faction.commanderTitle.toUpperCase()}

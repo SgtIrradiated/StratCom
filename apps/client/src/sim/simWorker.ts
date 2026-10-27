@@ -1,9 +1,8 @@
 import {
   Simulation,
   TICK_MS,
-  createSnapshotBuffers,
+  createSnapshotBuffersFor,
   scriptedCommands,
-  setupCapacity,
   snapshotTransferList,
 } from "@stratcom/sim";
 import type { MatchSetup, PlayerCommand, SnapshotBuffers } from "@stratcom/sim";
@@ -80,8 +79,7 @@ self.onmessage = (event: MessageEvent<ToWorker>): void => {
       case "init": {
         sim = new Simulation(msg.setup);
         script = msg.scripted ? msg.setup : undefined;
-        const capacity = setupCapacity(msg.setup);
-        free = Array.from({ length: msg.snapshotCount }, () => createSnapshotBuffers(capacity));
+        free = Array.from({ length: msg.snapshotCount }, () => createSnapshotBuffersFor(msg.setup));
         accumulator = 0;
         last = performance.now();
         clearInterval(timer);

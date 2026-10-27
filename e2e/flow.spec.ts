@@ -38,6 +38,9 @@ test("menu → setup → faction select → match → surrender → results → 
   const hud = page.getByTestId("hud");
   await expect(hud).toContainText("SCRAPBORN // WARBOSS");
   await expect(page.locator(".app")).toHaveClass(/skin-terminal-rust/);
+  // Fog of war follows our team, and the minimap is drawn.
+  await expect(html).toHaveAttribute("data-fog", /^\d+$/);
+  await expect(html).toHaveAttribute("data-minimap", "drawn");
 
   // The camera starts on our commander: box-selecting the screen centre picks up our units,
   // and the commander's build options appear.

@@ -10,6 +10,7 @@ import { CombatSystem } from "./systems/combat";
 import { CommandSystem } from "./systems/commands";
 import { HealthSystem, type PlayerCombatStats } from "./systems/health";
 import { VictorySystem, type MatchStatus } from "./systems/victory";
+import { VisibilitySystem } from "./systems/visibility";
 import { MovementSystem } from "./systems/movement";
 import { SeparationSystem } from "./systems/separation";
 import { WorkSystem } from "./systems/work";
@@ -38,8 +39,8 @@ export {
  *
  * Each tick runs the systems in `systems/` in a fixed order (docs/PLAN.md §4.4): commands,
  * movement (orders and flow fields), separation, combat (projectiles, targeting, weapons),
- * construction, repair, reclaim and the economy (ADR-0010), then damage and death, then
- * defeat and victory. Shared state lives in a {@link SimContext}.
+ * construction, repair, reclaim and the economy (ADR-0010), then damage and death, defeat
+ * and victory, and finally vision (fog of war). Shared state lives in a {@link SimContext}.
  */
 export class Simulation {
   private readonly ctx: SimContext;
@@ -50,6 +51,7 @@ export class Simulation {
   private readonly health: HealthSystem;
   private readonly combat: CombatSystem;
   private readonly victory: VictorySystem;
+  private readonly visibility: VisibilitySystem;
 
   constructor(setup: MatchSetup) {
     const slots = new Set(setup.players.map((p) => p.slot));
@@ -64,10 +66,11 @@ export class Simulation {
     const ctx = new SimContext(setup);
     this.ctx = ctx;
     // Registration order with the context fixes the state-hash order: orders, work, health,
-    // combat, victory.
+    // visibility, combat, victory.
     this.work = new WorkSystem(ctx);
     this.health = new HealthSystem(ctx);
-    this.combat = new CombatSystem(ctx, this.health);
+    this.visibility = new VisibilitySystem(ctx);
+    this.combat = new CombatSystem(ctx, this.health, this.visibility);
     this.victory = new VictorySystem(ctx, this.health);
     this.commands = new CommandSystem(ctx, this.work);
     this.movement = new MovementSystem(ctx, (order) => this.work.workFocus(order));
@@ -97,6 +100,8 @@ export class Simulation {
         heading: f.heading ?? 0,
       });
     }
+    // Teams see their surroundings from tick 0.
+    this.visibility.recompute();
   }
 
   /** Number of ticks simulated so far. */
@@ -163,6 +168,7 @@ export class Simulation {
     this.work.run();
     this.health.run();
     this.victory.run();
+    this.visibility.run();
     this.ctx.tick++;
   }
 
@@ -200,6 +206,7 @@ export class Simulation {
       out.progress[n] = w.progress[i] ?? 0;
       const max = w.kind[i] === EntityKind.unit ? (units[w.type[i] ?? 0]?.health ?? 0) : 0;
       out.health[n] = max > 0 ? (w.health[i] ?? 0) / max : 0;
+      out.seenBy[n] = this.visibility.seenBy(w.x[i] ?? 0, w.z[i] ?? 0);
       const queue = this.work.productionQueue(i);
       if (queue.length > 0) {
         out.production.push({
@@ -232,6 +239,10 @@ export class Simulation {
     }
     out.projectileCount = m;
     out.match = this.victory.status();
+    out.visionCols = this.visibility.cols;
+    out.visionRows = this.visibility.rows;
+    out.visionTeams = this.visibility.teams;
+    this.visibility.writeGrid(out.vision);
     out.events = this.ctx.events;
     this.ctx.events = [];
   }

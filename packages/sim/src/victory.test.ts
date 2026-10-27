@@ -13,6 +13,7 @@ const unit = (over: Partial<UnitTypeStats>): UnitTypeStats => ({
   speed: 10,
   turnRate: 6,
   health: 100,
+  vision: 150,
   weapons: [],
   wreckFeature: 0,
   commander: false,

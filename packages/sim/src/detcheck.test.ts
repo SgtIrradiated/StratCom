@@ -3,14 +3,16 @@ import { describe, expect, it } from "vitest";
 import { runDetScenario, runSkirmishDetScenario } from "./detcheck";
 import { EntityKind } from "./ecs/world";
 
-// Repinned twice in M5 (the system split before them left the hashes unchanged):
+// Repinned three times in M5 (the system split before them left the hashes unchanged):
 // 1. Combat: the test units are armed and fight (TEST_WEAPONS), units have health, and the
 //    hash covers health, weapon state, projectiles and kill/loss records.
 // 2. Victory: the hash covers each player's defeat tick and the match result. Nobody is
-//    defeated in this scenario, so its movement and combat are unchanged by that repin.
+//    defeated in this scenario, so its movement and combat were unchanged by that repin.
+// 3. Fog of war: weapons only fire at what their team sees (the heavy's cannon outranges its
+//    own sight), and the hash covers every team's vision grid.
 const GOLDEN = [
-  1614000273, 169803784, 2567070933, 2449092853, 3606758260, 3059260851, 213118930, 415093451,
-  3882453656, 277128214,
+  4068244802, 1771097840, 1932240515, 3473766935, 3491119893, 2304345854, 1018393846, 3573092632,
+  3486698507, 3082590743,
 ];
 
 describe("runDetScenario", () => {

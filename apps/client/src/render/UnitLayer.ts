@@ -12,12 +12,14 @@ import { EntityKind, sampleHeight, type SnapshotBuffers, type Terrain } from "@s
 import { HealthBars } from "./HealthBars";
 import { IconLayer } from "./IconLayer";
 import { SelectionRings } from "./SelectionRings";
-import type { FeatureVisual, UnitVisual } from "./types";
+import type { FeatureVisual, UnitVisual, ViewSnapshot } from "./types";
 
 /** Unfinished units are drawn this grey, blending to the owner's colour as they complete. */
 const FRAME_GREY = 0.32;
 /** Height of a site at 0 % progress, as a fraction of the finished height. */
 const FRAME_MIN_HEIGHT = 0.12;
+/** Remembered enemy structures (out of sight) are drawn this much darker. */
+const REMEMBERED_SHADE = 0.45;
 
 /**
  * Draws every unit and feature. Near the ground it uses one `InstancedMesh` per unit type
@@ -94,7 +96,7 @@ export class UnitLayer {
    * strategic-zoom factor: 0 draws models only, 1 icons only.
    */
   update(
-    snapshot: SnapshotBuffers,
+    snapshot: ViewSnapshot,
     alpha: number,
     selected: ReadonlySet<number>,
     camera: PerspectiveCamera,
@@ -126,9 +128,10 @@ export class UnitLayer {
       const rgb = (isFeature ? t : (owners[i] ?? 0)) * 3;
       // Unfinished units blend from grey to their owner's colour.
       const tint = isFeature || done >= 1 ? 1 : done * 0.6;
-      const r = FRAME_GREY + ((palette[rgb] ?? 1) - FRAME_GREY) * tint;
-      const g = FRAME_GREY + ((palette[rgb + 1] ?? 1) - FRAME_GREY) * tint;
-      const b = FRAME_GREY + ((palette[rgb + 2] ?? 1) - FRAME_GREY) * tint;
+      const shade = snapshot.remembered?.[i] === 1 ? REMEMBERED_SHADE : 1;
+      const r = (FRAME_GREY + ((palette[rgb] ?? 1) - FRAME_GREY) * tint) * shade;
+      const g = (FRAME_GREY + ((palette[rgb + 1] ?? 1) - FRAME_GREY) * tint) * shade;
+      const b = (FRAME_GREY + ((palette[rgb + 2] ?? 1) - FRAME_GREY) * tint) * shade;
       // Sites rise as they are built; debris flattens as it is reclaimed.
       const sy = isFeature
         ? 0.35 + 0.65 * done

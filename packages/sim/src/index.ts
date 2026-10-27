@@ -83,6 +83,8 @@ export { PROJECTILE_CAPACITY } from "./projectiles";
 export { RETARGET_TICKS } from "./systems/combat";
 export type { PlayerCombatStats } from "./systems/health";
 export type { MatchStatus, PlayerStatus, VictoryRule } from "./systems/victory";
+export { Fog, VISION_CELL, VISION_TICKS, visionGrid } from "./systems/visibility";
+export { NO_TEAM, denseTeams } from "./teams";
 export {
   MAX_WEAPONS,
   Simulation,
@@ -104,6 +106,7 @@ export { createDuelMatch, duelCommands } from "./duel";
 export { DET_TICKS, SKIRMISH_DET_TICKS, runDetScenario, runSkirmishDetScenario } from "./detcheck";
 export {
   createSnapshotBuffers,
+  createSnapshotBuffersFor,
   snapshotEconomy,
   snapshotTransferList,
   type ProductionInfo,

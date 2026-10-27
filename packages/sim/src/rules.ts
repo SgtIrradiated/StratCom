@@ -40,6 +40,8 @@ export interface UnitTypeStats {
   radius: number;
   /** Maximum health. */
   health: number;
+  /** Sight radius in metres: what its team sees around it (fog of war). */
+  vision: number;
   /** Weapon ids (indices into `SimRuleset.weapons`), at most {@link MAX_WEAPONS}. */
   weapons: readonly number[];
   /** Feature type spawned when it is destroyed, or -1 for none. */

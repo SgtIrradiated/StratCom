@@ -1,6 +1,5 @@
 import type { Vec2 } from "./commands";
-import { EntityKind, NEUTRAL_OWNER, World, type SpawnParams } from "./ecs/world";
-import { MAX_PLAYERS } from "./economy";
+import { EntityKind, World, type SpawnParams } from "./ecs/world";
 import { MAX_PENDING_EVENTS, type SimEvent } from "./events";
 import type { StateHasher } from "./math/hash";
 import { Prng } from "./math/prng";
@@ -9,6 +8,7 @@ import { cellAt } from "./navigation";
 import { hashOrders, type BuildOrder, type Order } from "./orders";
 import { distanceToFootprint, footprintAt, headingFacing, type Footprint } from "./placement";
 import { setupCapacity, type MatchSetup, type SimRuleset, type UnitTypeStats } from "./rules";
+import { NO_TEAM, denseTeams } from "./teams";
 import { terrainDepth, terrainWidth, type Terrain } from "./terrain";
 
 /**
@@ -52,8 +52,8 @@ export class SimContext implements SlotState {
   readonly orders: Order[][];
   /** Ticks simulated so far. */
   tick = 0;
-  /** Dense team index per player slot (teams in ascending order), 255 for empty slots. */
-  readonly teamOf = new Uint8Array(MAX_PLAYERS).fill(NEUTRAL_OWNER);
+  /** Dense team index per player slot (see {@link denseTeams}), `NO_TEAM` for empty slots. */
+  readonly teamOf: Uint8Array;
   /** Number of distinct teams. */
   readonly teamCount: number;
   /** Per unit type: the longest range among its weapons, 0 if unarmed. */
@@ -73,9 +73,9 @@ export class SimContext implements SlotState {
     this.width = terrainWidth(setup.terrain);
     this.depth = terrainDepth(setup.terrain);
     this.orders = Array.from({ length: capacity }, () => []);
-    const teams = [...new Set(setup.players.map((p) => p.team))].sort((a, b) => a - b);
-    this.teamCount = teams.length;
-    for (const p of setup.players) this.teamOf[p.slot] = teams.indexOf(p.team);
+    const teams = denseTeams(setup.players);
+    this.teamOf = teams.teamOf;
+    this.teamCount = teams.count;
     this.weaponReach = Float64Array.from(setup.ruleset.units, (u) =>
       u.weapons.reduce((r, w) => Math.max(r, setup.ruleset.weapons[w]?.range ?? 0), 0),
     );
@@ -87,9 +87,9 @@ export class SimContext implements SlotState {
    * teams. The only alliance test in the simulation, so alliance rules (M9) live here.
    */
   hostile(a: number, b: number): boolean {
-    const ta = this.teamOf[a] ?? NEUTRAL_OWNER;
-    const tb = this.teamOf[b] ?? NEUTRAL_OWNER;
-    return ta !== NEUTRAL_OWNER && tb !== NEUTRAL_OWNER && ta !== tb;
+    const ta = this.teamOf[a] ?? NO_TEAM;
+    const tb = this.teamOf[b] ?? NO_TEAM;
+    return ta !== NO_TEAM && tb !== NO_TEAM && ta !== tb;
   }
 
   /**

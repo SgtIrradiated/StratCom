@@ -291,6 +291,16 @@ export class InputController {
     }
   }
 
+  /**
+   * Gives the selection the context order for a right click on open ground at `ground` (the
+   * minimap uses this): move there, or set the rally point.
+   */
+  orderAt(ground: Vec2, queue: boolean): void {
+    const cur = this.host.current();
+    if (!cur || this.host.selection.ids.size === 0) return;
+    this.issueContext(cur.snapshot, -1, ground, queue);
+  }
+
   private contextOrder(e: PointerEvent): void {
     if (this.host.selection.ids.size === 0) return;
     const proj = this.project();
@@ -299,17 +309,26 @@ export class InputController {
     const p = this.ndc(at);
     const ground = this.host.renderer.groundAt(p.x, p.y);
     const hovered = nearestUnit(proj.screen, proj.snapshot.count, at.x, at.y, CLICK_RADIUS_PX);
+    this.issueContext(proj.snapshot, hovered, ground, e.shiftKey);
+  }
+
+  private issueContext(
+    snapshot: SnapshotBuffers,
+    hovered: number,
+    ground: Vec2 | undefined,
+    queue: boolean,
+  ): void {
     const commands = contextCommands(
       {
         ruleset: this.host.ruleset,
         localSlot: this.host.localSlot,
         teams: this.host.teams,
-        snapshot: proj.snapshot,
+        snapshot,
         selected: this.host.selection.ids,
       },
       hovered,
       ground,
-      e.shiftKey,
+      queue,
     );
     for (const cmd of commands) this.host.command(cmd);
   }

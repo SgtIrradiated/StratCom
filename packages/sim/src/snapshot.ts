@@ -1,7 +1,10 @@
 import { ECON_STRIDE, MAX_PLAYERS, readEconomy, type PlayerEconomy } from "./economy";
 import type { SimEvent } from "./events";
 import { PROJECTILE_CAPACITY } from "./projectiles";
+import { setupCapacity, type MatchSetup } from "./rules";
 import type { MatchStatus } from "./systems/victory";
+import { visionGrid } from "./systems/visibility";
+import { denseTeams } from "./teams";
 
 /** One factory's production queue, as shown in the HUD. */
 export interface ProductionInfo {
@@ -42,6 +45,17 @@ export interface SnapshotBuffers {
   progress: Float32Array;
   /** Health as a fraction of maximum for units; 0 for features. */
   health: Float32Array;
+  /** Bitmask of the dense teams (see `denseTeams`) that see each entry. */
+  seenBy: Uint16Array;
+  /** Vision grid size, and the number of teams in {@link vision}. */
+  visionCols: number;
+  visionRows: number;
+  visionTeams: number;
+  /**
+   * Every team's fog grid, `visionTeams × visionCols × visionRows` cells (team-major, then
+   * row-major), as `Fog` states: unexplored, explored or visible.
+   */
+  vision: Uint8Array;
   /** Number of valid projectile entries. */
   projectileCount: number;
   /** Projectile ground positions at the start and end of the tick. */
@@ -66,8 +80,11 @@ export interface SnapshotBuffers {
   match: MatchStatus;
 }
 
-/** Allocates snapshot buffers able to hold `capacity` entities. */
-export function createSnapshotBuffers(capacity: number): SnapshotBuffers {
+/**
+ * Allocates snapshot buffers able to hold `capacity` entities and `visionSize` fog cells (all
+ * teams together). {@link createSnapshotBuffersFor} sizes both from a match setup.
+ */
+export function createSnapshotBuffers(capacity: number, visionSize = 0): SnapshotBuffers {
   return {
     tick: 0,
     count: 0,
@@ -82,6 +99,11 @@ export function createSnapshotBuffers(capacity: number): SnapshotBuffers {
     heading: new Float32Array(capacity),
     progress: new Float32Array(capacity),
     health: new Float32Array(capacity),
+    seenBy: new Uint16Array(capacity),
+    visionCols: 0,
+    visionRows: 0,
+    visionTeams: 0,
+    vision: new Uint8Array(visionSize),
     projectileCount: 0,
     projPrevX: new Float32Array(PROJECTILE_CAPACITY),
     projPrevZ: new Float32Array(PROJECTILE_CAPACITY),
@@ -94,6 +116,13 @@ export function createSnapshotBuffers(capacity: number): SnapshotBuffers {
     events: [],
     match: { over: false, winnerTeam: -1, players: [] },
   };
+}
+
+/** Allocates snapshot buffers big enough for every entity and fog cell of `setup`. */
+export function createSnapshotBuffersFor(setup: MatchSetup): SnapshotBuffers {
+  const grid = visionGrid(setup.terrain);
+  const teams = denseTeams(setup.players).count;
+  return createSnapshotBuffers(setupCapacity(setup), grid.cols * grid.rows * teams);
 }
 
 /**

@@ -5,6 +5,7 @@ import { PROJECTILE_CAPACITY, ProjectilePool } from "../projectiles";
 import { MAX_WEAPONS, TICK_RATE, type WeaponStats } from "../rules";
 import { SpatialGrid } from "../spatialGrid";
 import type { HealthSystem } from "./health";
+import type { VisibilitySystem } from "./visibility";
 
 /** Bucket size of the targeting grid, in metres. Ranges reach hundreds of metres. */
 const TARGET_CELL = 64;
@@ -21,8 +22,9 @@ const STRUCTURE = 2;
 /**
  * Targeting, weapons and projectiles (docs/PLAN.md §4.4 steps 5–6).
  *
- * Every complete armed unit aims each weapon separately. A weapon keeps its target while it
- * stays alive, hostile and in range; an attack order's target overrides it whenever in range.
+ * Every complete armed unit aims each weapon separately, only at what its team can see (fog
+ * of war). A weapon keeps its target while it stays alive, hostile, visible and in range; an
+ * attack order's target overrides it whenever in range.
  * Without a target, a weapon looks for one only every {@link RETARGET_TICKS} ticks
  * (staggered by slot, so the cost spreads evenly), and prefers armed units, then other mobile
  * units, then structures, then the nearest, then the lowest slot.
@@ -47,6 +49,7 @@ export class CombatSystem implements SlotState {
   constructor(
     private readonly ctx: SimContext,
     private readonly health: HealthSystem,
+    private readonly visibility: VisibilitySystem,
   ) {
     const cap = ctx.capacity;
     this.cooldown = new Float64Array(cap * MAX_WEAPONS);
@@ -140,13 +143,16 @@ export class CombatSystem implements SlotState {
     return t >= 0 && this.isEnemy(i, t) ? t : -1;
   }
 
-  /** True if `t` is a live unit hostile to unit `i`'s owner. */
+  /** True if `t` is a live unit hostile to unit `i`'s owner, and seen by its team. */
   private isEnemy(i: number, t: number): boolean {
-    const w = this.ctx.world;
+    const ctx = this.ctx;
+    const w = ctx.world;
+    const owner = w.owner[i] ?? 0;
     return (
       this.targetable[t] === 1 &&
       w.alive[t] === 1 &&
-      this.ctx.hostile(w.owner[i] ?? 0, w.owner[t] ?? 0)
+      ctx.hostile(owner, w.owner[t] ?? 0) &&
+      this.visibility.sees(ctx.teamOf[owner] ?? 0, w.x[t] ?? 0, w.z[t] ?? 0)
     );
   }
 

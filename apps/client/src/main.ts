@@ -88,6 +88,7 @@ function startBench(units: number, ui: HTMLElement): void {
     unitVisuals: BENCH_VISUALS,
     localSlot: 0,
     scripted: true,
+    fog: false,
     stats,
     onError(message) {
       renderBootError(ui, [`Simulation error: ${message}`]);

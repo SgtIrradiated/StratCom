@@ -26,6 +26,14 @@ export interface FeatureVisual {
   color: string;
 }
 
+/**
+ * A snapshot as one player may see it (fog of war applied by the game layer). `remembered`
+ * marks enemy structures drawn where they were last seen.
+ */
+export interface ViewSnapshot extends SnapshotBuffers {
+  remembered?: Uint8Array;
+}
+
 export interface SceneOptions {
   /** One entry per unit type id used by the simulation. */
   unitVisuals: readonly UnitVisual[];
@@ -90,7 +98,12 @@ export interface GameRenderer {
    * its position at the start (0) and end (1) of the snapshot's tick. `selected` holds the
    * entity ids to highlight.
    */
-  setUnits(snapshot: SnapshotBuffers, alpha: number, selected: ReadonlySet<number>): void;
+  setUnits(snapshot: ViewSnapshot, alpha: number, selected: ReadonlySet<number>): void;
+  /**
+   * Shades the ground by fog of war: one team's cells of a snapshot's `vision` grid, or
+   * undefined to light the whole map.
+   */
+  setFog(vision: Uint8Array | undefined, offset?: number): void;
   /** Starts the effects (shots, impacts) for a snapshot's events, received at `timeMs`. */
   addEvents(events: readonly SimEvent[], timeMs: number): void;
   /**

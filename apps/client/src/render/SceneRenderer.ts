@@ -94,6 +94,9 @@ export function createSceneRenderer(
       units.update(snapshot, alpha, selected, rts.camera, blend);
       last = { snapshot, alpha };
     },
+    setFog(vision, offset) {
+      terrain.setFog(vision, offset);
+    },
     addEvents(events, timeMs) {
       combat.addEvents(events, timeMs);
     },

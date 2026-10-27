@@ -1,12 +1,17 @@
 import {
   BufferAttribute,
   BufferGeometry,
+  DataTexture,
   Group,
+  LinearFilter,
   Mesh,
   MeshStandardMaterial,
+  RedFormat,
+  UnsignedByteType,
+  Vector2,
   type Vector3,
 } from "three";
-import { sampleHeight, type Terrain } from "@stratcom/sim";
+import { Fog, VISION_CELL, sampleHeight, visionGrid, type Terrain } from "@stratcom/sim";
 
 /** Cells per chunk side at full detail. */
 const CHUNK_CELLS = 32;
@@ -14,6 +19,9 @@ const CHUNK_CELLS = 32;
 const LOD_STEPS = [1, 2, 4, 8] as const;
 /** Camera distance (m) beyond which a chunk drops to the next LOD level. */
 const LOD_DISTANCES = [500, 1100, 2200] as const;
+
+/** Ground brightness under fog (0–255), by `Fog` state. */
+const FOG_LIGHT = [60, 140, 255] as const;
 
 /** Wasteland palette blended by height and slope: a poor man's splat map until real textures. */
 const LOW = [0.55, 0.47, 0.33] as const; // dust
@@ -30,7 +38,8 @@ const smoothstep = (a: number, b: number, x: number): number => {
  * Chunked heightmap mesh with distance-based LOD. Each chunk keeps one lazily built
  * geometry per LOD level. Edges carry downward skirts, which hide the cracks that appear
  * where neighbouring chunks use different levels. Colours are baked per vertex from height
- * and slope.
+ * and slope. Fog of war darkens the ground through a small texture of the vision grid,
+ * sampled in the fragment shader.
  */
 export class TerrainLayer {
   readonly group = new Group();
@@ -49,8 +58,40 @@ export class TerrainLayer {
   }[] = [];
   private readonly minH: number;
   private readonly maxH: number;
+  private readonly fogData: Uint8Array;
+  private readonly fogTexture: DataTexture;
 
   constructor(private readonly terrain: Terrain) {
+    const grid = visionGrid(terrain);
+    this.fogData = new Uint8Array(grid.cols * grid.rows).fill(255);
+    this.fogTexture = new DataTexture(
+      this.fogData,
+      grid.cols,
+      grid.rows,
+      RedFormat,
+      UnsignedByteType,
+    );
+    this.fogTexture.magFilter = LinearFilter;
+    this.fogTexture.minFilter = LinearFilter;
+    this.fogTexture.needsUpdate = true;
+    const fogSize = new Vector2(grid.cols * VISION_CELL, grid.rows * VISION_CELL);
+    this.material.onBeforeCompile = (shader) => {
+      shader.uniforms["fogMap"] = { value: this.fogTexture };
+      shader.uniforms["fogSize"] = { value: fogSize };
+      shader.vertexShader =
+        "uniform vec2 fogSize;\nvarying vec2 vFogUv;\n" +
+        shader.vertexShader.replace(
+          "#include <begin_vertex>",
+          "#include <begin_vertex>\nvFogUv = (modelMatrix * vec4(transformed, 1.0)).xz / fogSize;",
+        );
+      shader.fragmentShader =
+        "uniform sampler2D fogMap;\nvarying vec2 vFogUv;\n" +
+        shader.fragmentShader.replace(
+          "#include <color_fragment>",
+          "#include <color_fragment>\ndiffuseColor.rgb *= texture2D(fogMap, vFogUv).r;",
+        );
+    };
+
     let lo = Infinity;
     let hi = -Infinity;
     for (const h of terrain.heights) {
@@ -95,10 +136,24 @@ export class TerrainLayer {
     }
   }
 
+  /**
+   * Shades the ground by fog of war: `grid` holds `Fog` states for one team (`offset` is
+   * where that team's cells start), or undefined to light everything.
+   */
+  setFog(grid: Uint8Array | undefined, offset = 0): void {
+    const data = this.fogData;
+    for (let k = 0; k < data.length; k++) {
+      const state = grid ? (grid[offset + k] ?? Fog.unexplored) : Fog.visible;
+      data[k] = FOG_LIGHT[state] ?? 255;
+    }
+    this.fogTexture.needsUpdate = true;
+  }
+
   /** Releases GPU resources. */
   dispose(): void {
     for (const chunk of this.chunks) for (const g of chunk.geometries) g?.dispose();
     this.material.dispose();
+    this.fogTexture.dispose();
   }
 
   private buildGeometry(cx: number, cz: number, step: number): BufferGeometry {

@@ -19,6 +19,7 @@ function testUnit(
   turnRate: number,
   radius: number,
   health: number,
+  vision: number,
   weapon: number,
 ): UnitTypeStats {
   return {
@@ -28,6 +29,7 @@ function testUnit(
     speed,
     turnRate,
     health,
+    vision,
     weapons: [weapon],
     wreckFeature: 0,
     commander: false,
@@ -41,10 +43,13 @@ function testUnit(
   };
 }
 
-/** Placeholder unit types: a quick scout with a beam and a slow heavy with a cannon. */
+/**
+ * Placeholder unit types: a quick scout with a beam, and a slow heavy whose cannon outranges
+ * its own sight, so it needs a spotter for its longest shots.
+ */
 export const TEST_UNIT_TYPES: readonly UnitTypeStats[] = [
-  testUnit(9, 4, 2, 120, 0),
-  testUnit(5, 2, 3.5, 400, 1),
+  testUnit(9, 4, 2, 120, 140, 0),
+  testUnit(5, 2, 3.5, 400, 70, 1),
 ];
 
 /** The wreck both test unit types leave. */
