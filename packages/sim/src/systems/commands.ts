@@ -40,6 +40,9 @@ export class CommandSystem {
         case "assist":
           this.workOrder(cmd);
           break;
+        case "attack":
+          this.attack(cmd);
+          break;
         case "produce":
           this.produce(cmd);
           break;
@@ -109,6 +112,19 @@ export class CommandSystem {
     });
     for (const i of builders) {
       ctx.giveOrder(i, { kind: cmd.t, target: w.idAt(t) }, cmd.queue === true);
+    }
+  }
+
+  private attack(cmd: Extract<PlayerCommand, { t: "attack" }>): void {
+    const ctx = this.ctx;
+    const w = ctx.world;
+    const t = w.resolve(cmd.target);
+    if (t < 0 || w.kind[t] !== EntityKind.unit || !ctx.hostile(cmd.slot, w.owner[t] ?? 0)) return;
+    const shooters = ctx.owned(cmd.slot, cmd.units, (i) => {
+      return (ctx.unitStats(i)?.weapons.length ?? 0) > 0;
+    });
+    for (const i of shooters) {
+      ctx.giveOrder(i, { kind: "attack", target: w.idAt(t) }, cmd.queue === true);
     }
   }
 

@@ -1,5 +1,7 @@
 import type { Vec2 } from "./commands";
-import { EntityKind, World } from "./ecs/world";
+import { EntityKind, NEUTRAL_OWNER, World, type SpawnParams } from "./ecs/world";
+import { MAX_PLAYERS } from "./economy";
+import { MAX_PENDING_EVENTS, type SimEvent } from "./events";
 import type { StateHasher } from "./math/hash";
 import { Prng } from "./math/prng";
 import { NavState } from "./nav";
@@ -50,6 +52,14 @@ export class SimContext implements SlotState {
   readonly orders: Order[][];
   /** Ticks simulated so far. */
   tick = 0;
+  /** Dense team index per player slot (teams in ascending order), 255 for empty slots. */
+  readonly teamOf = new Uint8Array(MAX_PLAYERS).fill(NEUTRAL_OWNER);
+  /** Number of distinct teams. */
+  readonly teamCount: number;
+  /** Per unit type: the longest range among its weapons, 0 if unarmed. */
+  readonly weaponReach: Float64Array;
+  /** Events since the last snapshot (presentation only, never hashed). */
+  events: SimEvent[] = [];
   private readonly slotStates: SlotState[] = [];
 
   constructor(readonly setup: MatchSetup) {
@@ -63,7 +73,43 @@ export class SimContext implements SlotState {
     this.width = terrainWidth(setup.terrain);
     this.depth = terrainDepth(setup.terrain);
     this.orders = Array.from({ length: capacity }, () => []);
+    const teams = [...new Set(setup.players.map((p) => p.team))].sort((a, b) => a - b);
+    this.teamCount = teams.length;
+    for (const p of setup.players) this.teamOf[p.slot] = teams.indexOf(p.team);
+    this.weaponReach = Float64Array.from(setup.ruleset.units, (u) =>
+      u.weapons.reduce((r, w) => Math.max(r, setup.ruleset.weapons[w]?.range ?? 0), 0),
+    );
     this.register(this);
+  }
+
+  /**
+   * True if units of player slots `a` and `b` are enemies: both are players, on different
+   * teams. The only alliance test in the simulation, so alliance rules (M9) live here.
+   */
+  hostile(a: number, b: number): boolean {
+    const ta = this.teamOf[a] ?? NEUTRAL_OWNER;
+    const tb = this.teamOf[b] ?? NEUTRAL_OWNER;
+    return ta !== NEUTRAL_OWNER && tb !== NEUTRAL_OWNER && ta !== tb;
+  }
+
+  /**
+   * Spawns a unit with health in proportion to its build progress (at least 1 hp, so a new
+   * site exists) and clears its slot. Returns the slot.
+   */
+  spawnUnit(params: Omit<SpawnParams, "kind" | "health">): number {
+    const max = this.rules.units[params.type]?.health ?? 1;
+    const id = this.world.spawn({
+      ...params,
+      health: Math.max(max * (params.progress ?? 1), 1),
+    });
+    const i = this.world.resolve(id);
+    this.resetSlot(i);
+    return i;
+  }
+
+  /** Records an event for the next snapshot, unless too many are pending. */
+  emit(event: SimEvent): void {
+    if (this.events.length < MAX_PENDING_EVENTS) this.events.push(event);
   }
 
   /** Entity capacity of the world. */

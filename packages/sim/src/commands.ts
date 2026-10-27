@@ -34,11 +34,16 @@ export type PlayerCommand =
       facing?: Facing;
       queue?: boolean;
     }
+  /**
+   * Armed units attack `target`, a hostile unit: mobile ones chase it into weapon range. Every
+   * weapon that can reach it fires at it; unarmed units ignore the command.
+   */
+  | { t: "attack"; slot: number; units: readonly number[]; target: number; queue?: boolean }
   /** Mobile builders reclaim a feature or one of the player's own structures. */
   | { t: "reclaim"; slot: number; units: readonly number[]; target: number; queue?: boolean }
   /**
-   * Mobile builders help `target`: finish it if unfinished, or put their build power into
-   * whatever it is building or producing.
+   * Mobile builders help `target`: finish it if unfinished, repair it if damaged, or put
+   * their build power into whatever it is building or producing.
    */
   | { t: "assist"; slot: number; units: readonly number[]; target: number; queue?: boolean }
   /**

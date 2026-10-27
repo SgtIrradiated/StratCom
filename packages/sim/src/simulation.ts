@@ -4,9 +4,11 @@ import { SimContext } from "./context";
 import { EntityKind, NEUTRAL_OWNER, type World } from "./ecs/world";
 import { MAX_PLAYERS, readEconomy, type PlayerEconomy } from "./economy";
 import { StateHasher } from "./math/hash";
-import type { MatchSetup } from "./rules";
+import { TICK_RATE, type MatchSetup } from "./rules";
 import type { SnapshotBuffers } from "./snapshot";
+import { CombatSystem } from "./systems/combat";
 import { CommandSystem } from "./systems/commands";
+import { HealthSystem, type PlayerCombatStats } from "./systems/health";
 import { MovementSystem } from "./systems/movement";
 import { SeparationSystem } from "./systems/separation";
 import { WorkSystem } from "./systems/work";
@@ -15,6 +17,7 @@ export {
   TICK_MS,
   TICK_RATE,
   setupCapacity,
+  MAX_WEAPONS,
   type FeatureTypeStats,
   type InitialFeature,
   type InitialUnit,
@@ -23,6 +26,7 @@ export {
   type PlayerSetup,
   type SimRuleset,
   type UnitTypeStats,
+  type WeaponStats,
 } from "./rules";
 
 /**
@@ -31,8 +35,9 @@ export {
  * {@link stateHash} values are always equal.
  *
  * Each tick runs the systems in `systems/` in a fixed order (docs/PLAN.md §4.4): commands,
- * movement (orders and flow fields), separation, then construction, reclaim and the economy
- * (ADR-0010). Shared state lives in a {@link SimContext}.
+ * movement (orders and flow fields), separation, combat (projectiles, targeting, weapons),
+ * construction, repair, reclaim and the economy (ADR-0010), then damage and death. Shared
+ * state lives in a {@link SimContext}.
  */
 export class Simulation {
   private readonly ctx: SimContext;
@@ -40,6 +45,8 @@ export class Simulation {
   private readonly movement: MovementSystem;
   private readonly separation: SeparationSystem;
   private readonly work: WorkSystem;
+  private readonly health: HealthSystem;
+  private readonly combat: CombatSystem;
 
   constructor(setup: MatchSetup) {
     const slots = new Set(setup.players.map((p) => p.slot));
@@ -53,8 +60,11 @@ export class Simulation {
 
     const ctx = new SimContext(setup);
     this.ctx = ctx;
-    // Registration order with the context fixes the state-hash order: orders, then work.
+    // Registration order with the context fixes the state-hash order: orders, work, health,
+    // combat.
     this.work = new WorkSystem(ctx);
+    this.health = new HealthSystem(ctx);
+    this.combat = new CombatSystem(ctx, this.health);
     this.commands = new CommandSystem(ctx, this.work);
     this.movement = new MovementSystem(ctx, (order) => this.work.workFocus(order));
     this.separation = new SeparationSystem(ctx);
@@ -63,8 +73,13 @@ export class Simulation {
     for (const u of setup.initialUnits) {
       assert(slots.has(u.slot), `initial unit for unknown slot ${u.slot}`);
       assert(setup.ruleset.units[u.type] !== undefined, `unknown unit type ${u.type}`);
-      const id = w.spawn({ type: u.type, owner: u.slot, x: u.x, z: u.z, heading: u.heading ?? 0 });
-      const i = w.resolve(id);
+      const i = ctx.spawnUnit({
+        type: u.type,
+        owner: u.slot,
+        x: u.x,
+        z: u.z,
+        heading: u.heading ?? 0,
+      });
       if (setup.ruleset.units[u.type]?.mobile === false) ctx.markFootprint(i, true);
     }
     for (const f of setup.features ?? []) {
@@ -110,6 +125,21 @@ export class Simulation {
     return readEconomy(this.work.econ, slot);
   }
 
+  /** Kills and losses of player `slot` so far. */
+  playerStats(slot: number): PlayerCombatStats {
+    return this.health.playerStats(slot);
+  }
+
+  /** Entity id weapon `k` of the unit in slot `i` is aimed at, or 0. */
+  weaponTarget(i: number, k: number): number {
+    return this.combat.aimOf(i, k);
+  }
+
+  /** Number of projectiles in flight. */
+  get projectileCount(): number {
+    return this.combat.projectiles.count;
+  }
+
   /** Read access to the world for tests and tools. Do not mutate it from outside. */
   get state(): World {
     return this.ctx.world;
@@ -120,7 +150,9 @@ export class Simulation {
     this.commands.run(commands);
     this.movement.run();
     this.separation.run();
+    this.combat.run();
     this.work.run();
+    this.health.run();
     this.ctx.tick++;
   }
 
@@ -134,9 +166,13 @@ export class Simulation {
     return h.digest();
   }
 
-  /** Copies the render state into `out`. `out` must have capacity for every live entity. */
+  /**
+   * Copies the render state into `out`. `out` must have capacity for every live entity.
+   * Moves the events since the previous snapshot into `out.events`.
+   */
   writeSnapshot(out: SnapshotBuffers): void {
     const w = this.ctx.world;
+    const units = this.ctx.rules.units;
     assert(out.ids.length >= w.liveCount, "snapshot buffers too small");
     let n = 0;
     out.production = [];
@@ -152,6 +188,8 @@ export class Simulation {
       out.z[n] = w.z[i] ?? 0;
       out.heading[n] = w.heading[i] ?? 0;
       out.progress[n] = w.progress[i] ?? 0;
+      const max = w.kind[i] === EntityKind.unit ? (units[w.type[i] ?? 0]?.health ?? 0) : 0;
+      out.health[n] = max > 0 ? (w.health[i] ?? 0) / max : 0;
       const queue = this.work.productionQueue(i);
       if (queue.length > 0) {
         out.production.push({
@@ -165,5 +203,25 @@ export class Simulation {
     out.count = n;
     out.tick = this.ctx.tick;
     out.economy.set(this.work.econ);
+
+    const p = this.combat.projectiles;
+    const dt = 1 / TICK_RATE;
+    let m = 0;
+    for (let k = 0; k < p.highWater && m < out.projX.length; k++) {
+      if (p.alive[k] === 0) continue;
+      const elapsed = p.elapsed[k] ?? 0;
+      const now = p.positionAt(k, elapsed);
+      const before = p.positionAt(k, Math.max(elapsed - dt, 0));
+      out.projPrevX[m] = before.x;
+      out.projPrevZ[m] = before.z;
+      out.projX[m] = now.x;
+      out.projZ[m] = now.z;
+      out.projT[m] = p.progress(k);
+      out.projWeapon[m] = p.weapon[k] ?? 0;
+      m++;
+    }
+    out.projectileCount = m;
+    out.events = this.ctx.events;
+    this.ctx.events = [];
   }
 }

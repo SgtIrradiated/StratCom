@@ -146,7 +146,10 @@ export function InGame(props: {
               <StatRow label="Power" value={`${formatRate(unit.economy.powerPerSec)}/s`} />
             )}
             {unit.buildRate > 0 && <StatRow label="Build rate" value={`×${unit.buildRate}`} />}
-            <StatRow label="Hull" value={unit.health.toLocaleString("en")} />
+            <StatRow
+              label="Hull"
+              value={`${Math.ceil((snapshot.health[singleIndex] ?? 1) * unit.health).toLocaleString("en")} / ${unit.health.toLocaleString("en")}`}
+            />
             {unit.mobile && <StatRow label="Speed" value={`${unit.speed} m/s`} />}
             <StatRow label="Vision" value={`${unit.vision} m`} />
             {unit.weapons.map((w) => {

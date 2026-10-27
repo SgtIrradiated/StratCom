@@ -7,7 +7,8 @@ import {
   Scene,
   WebGLRenderer,
 } from "three";
-import { terrainWidth, type SnapshotBuffers } from "@stratcom/sim";
+import { PROJECTILE_CAPACITY, terrainWidth, type SnapshotBuffers } from "@stratcom/sim";
+import { CombatLayer } from "./CombatLayer";
 import { DepositLayer } from "./DepositLayer";
 import { GhostLayer } from "./GhostLayer";
 import { RtsCamera } from "./RtsCamera";
@@ -29,8 +30,9 @@ const STRATEGIC_END = 1300;
 
 /**
  * The layered renderer from docs/PLAN.md §4.3: {@link TerrainLayer}, {@link DepositLayer},
- * {@link UnitLayer} (with its icon and selection sub-layers), the placement
- * {@link GhostLayer} and the {@link RtsCamera}. FxLayer arrives later.
+ * {@link UnitLayer} (with its icon, selection and health-bar sub-layers), the
+ * {@link CombatLayer} (projectiles and shots), the placement {@link GhostLayer} and the
+ * {@link RtsCamera}. The FxLayer (explosions, grading) arrives in M7.
  */
 export function createSceneRenderer(
   canvas: HTMLCanvasElement,
@@ -67,12 +69,15 @@ export function createSceneRenderer(
     options.selectionColor,
   );
   scene.add(units.group);
+  const combat = new CombatLayer(options.weaponKinds, PROJECTILE_CAPACITY, options.terrain);
+  scene.add(combat.group);
   const ghost = new GhostLayer(options.terrain);
   scene.add(ghost.group);
 
   let width = 1;
   let height = 1;
   let blend = 0;
+  let last: { snapshot: SnapshotBuffers; alpha: number } | undefined;
 
   return {
     camera: rts,
@@ -87,6 +92,10 @@ export function createSceneRenderer(
       const t = (rts.distance - STRATEGIC_START) / (STRATEGIC_END - STRATEGIC_START);
       blend = Math.min(Math.max(t, 0), 1);
       units.update(snapshot, alpha, selected, rts.camera, blend);
+      last = { snapshot, alpha };
+    },
+    addEvents(events, timeMs) {
+      combat.addEvents(events, timeMs);
     },
     projectUnits(snapshot, alpha, out) {
       units.project(snapshot, alpha, rts.camera, width, height, out);
@@ -95,7 +104,9 @@ export function createSceneRenderer(
       ghost.set(g);
     },
     groundAt: (x, y) => rts.groundAt(x, y),
-    render() {
+    render(timeMs) {
+      if (last) combat.update(last.snapshot, last.alpha, timeMs);
+      combat.group.visible = blend < 1;
       // The sun follows the camera target so shadows-to-be stay coherent; direction is fixed.
       sun.target.position.set(rts.target.x, 0, rts.target.z);
       sun.position.set(rts.target.x - 700, 450, rts.target.z + 300);
@@ -111,6 +122,7 @@ export function createSceneRenderer(
     },
     dispose() {
       units.dispose();
+      combat.dispose();
       ghost.dispose();
       deposits.dispose();
       terrain.dispose();

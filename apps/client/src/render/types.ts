@@ -3,10 +3,10 @@
  * these interfaces and never imports three.js directly (ADR-0004). That keeps a future
  * move to three's WebGPURenderer contained to this folder.
  */
-import type { IconShape } from "@stratcom/data";
-import type { SnapshotBuffers, Terrain } from "@stratcom/sim";
+import type { IconShape, WeaponKind } from "@stratcom/data";
+import type { SimEvent, SnapshotBuffers, Terrain } from "@stratcom/sim";
 
-export type { IconShape };
+export type { IconShape, WeaponKind };
 
 /** How one unit type is drawn until real models exist. Indexed by the sim's unit type id. */
 export interface UnitVisual {
@@ -31,6 +31,8 @@ export interface SceneOptions {
   unitVisuals: readonly UnitVisual[];
   /** One entry per feature type id. */
   featureVisuals: readonly FeatureVisual[];
+  /** Kind of each weapon id, for its effects. Missing weapons draw as ballistic. */
+  weaponKinds: readonly WeaponKind[];
   /** Salvage deposits, drawn as markers on the ground. */
   deposits: readonly GroundPoint[];
   /** CSS hex colour per player slot, indexed by slot. */
@@ -89,6 +91,8 @@ export interface GameRenderer {
    * entity ids to highlight.
    */
   setUnits(snapshot: SnapshotBuffers, alpha: number, selected: ReadonlySet<number>): void;
+  /** Starts the effects (shots, impacts) for a snapshot's events, received at `timeMs`. */
+  addEvents(events: readonly SimEvent[], timeMs: number): void;
   /**
    * Writes the screen position (CSS pixels, x then y per unit) of every unit in the
    * snapshot into `out`, using the same interpolation as {@link setUnits}. Units behind

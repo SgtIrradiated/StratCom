@@ -9,6 +9,7 @@ import {
   type PerspectiveCamera,
 } from "three";
 import { EntityKind, sampleHeight, type SnapshotBuffers, type Terrain } from "@stratcom/sim";
+import { HealthBars } from "./HealthBars";
 import { IconLayer } from "./IconLayer";
 import { SelectionRings } from "./SelectionRings";
 import type { FeatureVisual, UnitVisual } from "./types";
@@ -22,7 +23,7 @@ const FRAME_MIN_HEIGHT = 0.12;
  * Draws every unit and feature. Near the ground it uses one `InstancedMesh` per unit type
  * and per feature type (draw calls scale with types, not units, docs/PLAN.md §4.3); zoomed
  * out, the {@link IconLayer} takes over with a cross-fade (features get no icon). Selected
- * units get a ring. Unfinished units rise from a low grey frame as they are built; features
+ * units get a ring, and damaged units a {@link HealthBars} bar. Unfinished units rise from a low grey frame as they are built; features
  * shrink as they are reclaimed. Per-instance data is written straight into the attribute
  * arrays each frame.
  */
@@ -39,6 +40,7 @@ export class UnitLayer {
   });
   private readonly icons: IconLayer;
   private readonly rings: SelectionRings;
+  private readonly bars: HealthBars;
   private readonly playerRgb: Float32Array;
   private readonly featureRgb: Float32Array;
 
@@ -83,7 +85,8 @@ export class UnitLayer {
     );
     this.icons = new IconLayer(visuals, maxUnits);
     this.rings = new SelectionRings(maxUnits, selectionColor);
-    this.group.add(this.icons.group, this.rings.mesh);
+    this.bars = new HealthBars(maxUnits);
+    this.group.add(this.icons.group, this.rings.mesh, this.bars.mesh);
   }
 
   /**
@@ -101,9 +104,11 @@ export class UnitLayer {
     const matrices = this.meshes.map((m) => m.instanceMatrix.array as Float32Array);
     const drawModels = blend < 1;
     const drawIcons = blend > 0;
-    const { count, ids, kinds, types, owners, prevX, prevZ, x, z, heading, progress } = snapshot;
+    const { count, ids, kinds, types, owners, prevX, prevZ, x, z, heading, progress, health } =
+      snapshot;
     this.icons.begin(camera);
     this.rings.begin();
+    this.bars.begin(camera);
 
     for (let i = 0; i < count; i++) {
       const t = types[i] ?? 0;
@@ -165,6 +170,11 @@ export class UnitLayer {
           col[c + 2] = b;
         }
         if (isSelected && visual) this.rings.add(ux, uy, uz, visual.radius * 2);
+        // Sites show their build progress instead; only finished units get a bar.
+        const hp = health[i] ?? 1;
+        if (visual && done >= 1 && hp < 1) {
+          this.bars.add(ux, uy + visual.size[1], uz, Math.max(visual.radius * 2, 3), hp);
+        }
       }
       if (drawIcons && !isFeature) this.icons.add(t, ux, uy, uz, r, g, b, isSelected);
     }
@@ -185,6 +195,7 @@ export class UnitLayer {
     }
     this.icons.end(blend);
     this.rings.end(Math.max(0, 1 - blend * 2));
+    this.bars.end(blend < 0.5);
   }
 
   /**
@@ -233,5 +244,6 @@ export class UnitLayer {
     this.material.dispose();
     this.icons.dispose();
     this.rings.dispose();
+    this.bars.dispose();
   }
 }

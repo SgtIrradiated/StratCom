@@ -1,16 +1,22 @@
 import type { Focus, SimContext } from "../context";
 import { atan2, wrapAngle } from "../math/trig";
+import { EntityKind } from "../ecs/world";
 import { cellAt, flowDirection, hasLineOfSight, type FlowField, type NavGrid } from "../navigation";
-import type { Order, WorkOrder } from "../orders";
+import type { AttackOrder, Order, WorkOrder } from "../orders";
 import { TICK_RATE, type UnitTypeStats } from "../rules";
 
 /** Beyond this many cells a unit follows the flow field instead of testing line of sight. */
 const LINE_OF_SIGHT_CELLS = 40;
+/** Attackers close to this fraction of their longest weapon range before they stop. */
+const ATTACK_RANGE_FRACTION = 0.9;
+/** A chaser keeps its flow field until its target is this many cells from the field's goal. */
+const CHASE_REPATH_CELLS = 4;
 
 /**
  * Order following (docs/PLAN.md §4.4 steps 2–4). Move orders follow the flow field shared by
  * their command's group and stop in a disc whose size grows with the group; work orders walk
- * into reach of their target through a small cache of shared fields.
+ * into reach of their target through a small cache of shared fields; attack orders chase
+ * their target until it is in weapon range.
  */
 export class MovementSystem {
   /**
@@ -38,6 +44,7 @@ export class MovementSystem {
       const stats = ctx.unitStats(i);
       if (!stats) continue;
       if (order.kind === "move") this.followMove(i, order, stats);
+      else if (order.kind === "attack") this.chase(i, order, stats);
       else this.approach(i, order, stats);
     }
   }
@@ -89,6 +96,52 @@ export class MovementSystem {
     const goalDist = Math.sqrt(gx * gx + gz * gz);
     // At the closest open cell and still out of reach: the target cannot be reached.
     if (goalDist <= 0.5 || !this.steer(i, stats, grid, field, goalDist)) ctx.finishOrder(i);
+  }
+
+  /**
+   * Closes on an attack order's target until it is within weapon range, then holds while the
+   * weapons work. The order ends when the target is gone. Structures never move.
+   */
+  private chase(i: number, order: AttackOrder, stats: UnitTypeStats): void {
+    const ctx = this.ctx;
+    const w = ctx.world;
+    const t = w.resolve(order.target);
+    if (t < 0 || w.kind[t] !== EntityKind.unit) {
+      ctx.finishOrder(i);
+      return;
+    }
+    if (!stats.mobile) return;
+    const focus = ctx.focusOf(t);
+    const reach = (ctx.weaponReach[w.type[i] ?? 0] ?? 0) * ATTACK_RANGE_FRACTION - stats.radius;
+    if (ctx.gapTo(i, focus) <= reach) return;
+    const grid = ctx.nav.grids[stats.movementClass];
+    if (!grid) return;
+    const cell = cellAt(grid, focus.x, focus.z);
+    const last = order.fieldCell;
+    if (
+      !order.field ||
+      last === undefined ||
+      Math.abs((last % grid.cols) - (cell % grid.cols)) > CHASE_REPATH_CELLS ||
+      Math.abs(Math.floor(last / grid.cols) - Math.floor(cell / grid.cols)) > CHASE_REPATH_CELLS
+    ) {
+      order.field = ctx.nav.workField(stats.movementClass, cell);
+      order.fieldCell = cell;
+    }
+    const field = order.field;
+    if (!field) {
+      ctx.finishOrder(i);
+      return;
+    }
+    ctx.nav.refreshField(field);
+    const gx = field.goalX - (w.x[i] ?? 0);
+    const gz = field.goalZ - (w.z[i] ?? 0);
+    const goalDist = Math.sqrt(gx * gx + gz * gz);
+    // Reached where the target was: aim at where it is now, next tick.
+    if (goalDist <= 0.5) {
+      order.field = undefined;
+      return;
+    }
+    if (!this.steer(i, stats, grid, field, goalDist)) order.field = undefined;
   }
 
   /**

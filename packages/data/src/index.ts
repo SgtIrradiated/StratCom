@@ -10,6 +10,7 @@ export { MAPS, getMap, validateMaps } from "./maps/index";
 export { RAW_MOVEMENT_CLASSES } from "./movement";
 export {
   RulesetError,
+  WRECK_SUFFIX,
   compileRuleset,
   rulesetFaction,
   rulesetFeature,
@@ -28,12 +29,14 @@ export { FeatureDef, type FeatureInput } from "./schema/feature";
 export { DebrisField, MapDef, MapPoint, StartPosition, type MapInput } from "./schema/map";
 export {
   IconShape,
+  MAX_UNIT_WEAPONS,
   MovementClassDef,
   Placement,
   UnitDef,
   UnitRole,
   WeaponDef,
   WeaponKind,
+  WreckDef,
   type UnitInput,
   type WeaponInput,
 } from "./schema/unit";

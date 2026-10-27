@@ -10,7 +10,7 @@ import type { StatsPanel } from "../bench/stats";
 import { InputController } from "../input/InputController";
 import { Selection } from "../input/selection";
 import { createSceneRenderer } from "../render/SceneRenderer";
-import type { FeatureVisual, GameRenderer, UnitVisual } from "../render/types";
+import type { FeatureVisual, GameRenderer, UnitVisual, WeaponKind } from "../render/types";
 import { SimClient } from "../sim/SimClient";
 import { findUnit } from "./hudModel";
 
@@ -21,6 +21,8 @@ export interface SessionOptions {
   unitVisuals: readonly UnitVisual[];
   /** Placeholder looks, indexed by feature type id. */
   featureVisuals?: readonly FeatureVisual[];
+  /** Kind of each weapon id, for its effects. */
+  weaponKinds?: readonly WeaponKind[];
   /** Slot of the local (human) player. */
   localSlot: number;
   /** Drive the match with the built-in scripted commands (demo and `?bench=N`). */
@@ -67,6 +69,7 @@ export class GameSession {
     this.renderer = createSceneRenderer(this.canvas, {
       unitVisuals: options.unitVisuals,
       featureVisuals: options.featureVisuals ?? [],
+      weaponKinds: options.weaponKinds ?? [],
       deposits: setup.deposits ?? [],
       playerColors: Array.from(players, (c) => c ?? "#808080"),
       maxUnits: setupCapacity(setup),
@@ -84,6 +87,7 @@ export class GameSession {
           if (this.current) this.sim.recycle(this.current);
           this.current = snapshot;
           this.receivedAt = at;
+          this.renderer.addEvents(snapshot.events, at);
         },
         onStats: (s) => options.stats?.setSim(s),
         onError: (message) => options.onError?.(message),
@@ -96,6 +100,7 @@ export class GameSession {
       renderer: this.renderer,
       selection: this.selection,
       localSlot: options.localSlot,
+      teams: teamsBySlot(setup),
       ruleset: setup.ruleset,
       terrain: setup.terrain,
       deposits: setup.deposits ?? [],
@@ -240,6 +245,13 @@ export class GameSession {
     cam.zoomAt(0, 0, START_DISTANCE / cam.distance);
     cam.focus(start.x, start.z);
   }
+}
+
+/** Team of each player slot, indexed by slot. */
+function teamsBySlot(setup: MatchSetup): (number | undefined)[] {
+  const teams: (number | undefined)[] = [];
+  for (const p of setup.players) teams[p.slot] = p.team;
+  return teams;
 }
 
 /** Number of units and structures (finished or not) owned by `slot`. */

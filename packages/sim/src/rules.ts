@@ -13,14 +13,39 @@ export interface MovementClassDef {
   maxSlope: number;
 }
 
+/** Most weapons one unit type may carry; weapon state is kept per unit in fixed strides. */
+export const MAX_WEAPONS = 4;
+
+/** What the simulation needs to know about one weapon. */
+export interface WeaponStats {
+  /** Damage per shot, to the target or to every hostile unit in the area. */
+  damage: number;
+  /** Metres from the shooter's centre to the target's edge. */
+  range: number;
+  /** Seconds between shots. */
+  reload: number;
+  /** Splash radius in metres; 0 hits only the target. */
+  areaRadius: number;
+  /** Metres per second; 0 hits instantly. */
+  projectileSpeed: number;
+}
+
 /** What the simulation needs to know about one unit type. */
 export interface UnitTypeStats {
   /** False for structures: they never move and are not pushed by separation. */
   mobile: boolean;
   /** Index into `SimRuleset.movementClasses`; ignored (conventionally -1) when immobile. */
   movementClass: number;
-  /** Collision radius in metres, used for separation. */
+  /** Collision radius in metres, used for separation, targeting and hits. */
   radius: number;
+  /** Maximum health. */
+  health: number;
+  /** Weapon ids (indices into `SimRuleset.weapons`), at most {@link MAX_WEAPONS}. */
+  weapons: readonly number[];
+  /** Feature type spawned when it is destroyed, or -1 for none. */
+  wreckFeature: number;
+  /** Losing every commander defeats a player. */
+  commander: boolean;
   /** Top speed in metres per second. */
   speed: number;
   /** Maximum turn rate in radians per second. */
@@ -62,6 +87,7 @@ export interface SimRuleset {
   movementClasses: readonly MovementClassDef[];
   units: readonly UnitTypeStats[];
   features: readonly FeatureTypeStats[];
+  weapons: readonly WeaponStats[];
 }
 
 /** One player slot. Slots and teams are N-wide; nothing assumes two players. */

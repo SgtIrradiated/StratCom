@@ -20,10 +20,14 @@ const EXIT_DISTANCE = 12;
 const DONE = 1 - 1e-9;
 
 /**
- * Construction, factories, reclaim and the flow economy (ADR-0010). Builders place sites and
- * put build power into jobs, factories produce, reclaimers strip targets, then each player's
- * income, storage and stall factor are settled. Every job of a player gets the same stall
- * factor, so a shortfall slows all of their construction proportionally.
+ * Construction, factories, repair, reclaim and the flow economy (ADR-0010). Builders place
+ * sites and put build power into jobs, factories produce, reclaimers strip targets, then each
+ * player's income, storage and stall factor are settled. Every job of a player gets the same
+ * stall factor, so a shortfall slows all of their construction proportionally.
+ *
+ * A job is keyed by entity slot: the slot itself for building it (or what its factory
+ * produces), and slot + capacity for repairing it. Repair restores health at the rate it
+ * would be built, for the same share of its cost.
  *
  * Owns the factory production queues, rally points and the per-player economy.
  */
@@ -55,8 +59,8 @@ export class WorkSystem implements SlotState {
     this.hasRally = new Uint8Array(capacity);
     this.rallyX = new Float64Array(capacity);
     this.rallyZ = new Float64Array(capacity);
-    this.jobRate = new Float64Array(capacity);
-    this.jobStep = new Float64Array(capacity);
+    this.jobRate = new Float64Array(capacity * 2);
+    this.jobStep = new Float64Array(capacity * 2);
     for (const p of ctx.setup.players) {
       this.isPlayer[p.slot] = 1;
       const o = p.slot * ECON_STRIDE;
@@ -180,7 +184,7 @@ export class WorkSystem implements SlotState {
       const queue = ctx.orders[i];
       if (!queue || queue.length === 0) continue;
       const order = queue[0];
-      if (!order || order.kind === "move") continue;
+      if (!order || order.kind === "move" || order.kind === "attack") continue;
       const job = this.workJob(i, order, st);
       if (job === "reclaim") reclaimers.push(i);
       else if (job >= 0) addWork(job, st.buildRate);
@@ -204,6 +208,9 @@ export class WorkSystem implements SlotState {
         if (!cost) continue;
         const dp = Math.min((rate * DISMANTLE_SPEED * dt) / cost.buildTime, w.progress[t] ?? 0);
         w.progress[t] = (w.progress[t] ?? 0) - dp;
+        // Health falls with what is left of it.
+        const max = units[w.type[t] ?? 0]?.health ?? 0;
+        w.health[t] = Math.min(w.health[t] ?? 0, (w.progress[t] ?? 0) * max);
         gained = dp * cost.salvage;
       }
       income[p * 2] = (income[p * 2] ?? 0) + gained;
@@ -213,15 +220,16 @@ export class WorkSystem implements SlotState {
     // 3. Demand: what every job would draw this tick at full speed.
     for (const j of jobs) {
       const rate = this.jobRate[j] ?? 0;
-      const cost = w.alive[j] === 1 ? this.jobCost(j) : undefined;
+      const slot = this.jobSlot(j);
+      const cost = w.alive[slot] === 1 ? this.jobCost(j) : undefined;
       if (!cost) {
         this.jobStep[j] = 0;
         continue;
       }
-      const done = (w.progress[j] ?? 0) < 1 ? (w.progress[j] ?? 0) : (this.jobProgress[j] ?? 0);
+      const done = this.jobDone(j);
       const step = Math.max(Math.min((rate * dt) / cost.buildTime, 1 - done), 0);
       this.jobStep[j] = step;
-      const p = w.owner[j] ?? 0;
+      const p = w.owner[slot] ?? 0;
       demand[p * 2] = (demand[p * 2] ?? 0) + step * cost.salvage;
       demand[p * 2 + 1] = (demand[p * 2 + 1] ?? 0) + step * cost.power;
     }
@@ -240,13 +248,19 @@ export class WorkSystem implements SlotState {
       this.jobStep[j] = 0;
       const cost = step > 0 ? this.jobCost(j) : undefined;
       if (!cost) continue;
-      const p = w.owner[j] ?? 0;
+      const slot = this.jobSlot(j);
+      const p = w.owner[slot] ?? 0;
       const s = step * (factor[p] ?? 0);
       spent[p * 2] = (spent[p * 2] ?? 0) + s * cost.salvage;
       spent[p * 2 + 1] = (spent[p * 2 + 1] ?? 0) + s * cost.power;
-      if ((w.progress[j] ?? 0) < 1) {
+      const max = units[w.type[slot] ?? 0]?.health ?? 0;
+      if (j !== slot) {
+        this.heal(slot, s * max, max);
+      } else if ((w.progress[j] ?? 0) < 1) {
         const next = (w.progress[j] ?? 0) + s;
         w.progress[j] = next >= DONE ? 1 : next;
+        // A site gains health as it is built; damage it took while building stays.
+        this.heal(j, s * max, max);
       } else {
         const next = (this.jobProgress[j] ?? 0) + s;
         this.jobProgress[j] = next >= DONE ? 1 : next;
@@ -312,10 +326,13 @@ export class WorkSystem implements SlotState {
       // Nothing to help with. Builders and factories may start again, so keep guarding them.
       return (ctx.unitStats(t)?.buildRate ?? 0) > 0 ? -1 : ctx.finishOrder(i);
     }
-    return ctx.gapTo(i, ctx.focusOf(job)) <= st.buildRange ? job : -1;
+    return ctx.gapTo(i, ctx.focusOf(this.jobSlot(job))) <= st.buildRange ? job : -1;
   }
 
-  /** The slot whose progress `t`'s build power currently goes into, or -1. */
+  /**
+   * The job that assisting `t` puts build power into, or -1: finishing it, repairing it,
+   * then whatever it is building or producing.
+   */
   private jobOf(t: number): number {
     const ctx = this.ctx;
     const w = ctx.world;
@@ -323,6 +340,7 @@ export class WorkSystem implements SlotState {
     if ((w.progress[t] ?? 0) < 1) return t;
     const st = ctx.unitStats(t);
     if (!st) return -1;
+    if ((w.health[t] ?? 0) < st.health) return t + ctx.capacity;
     if (!st.mobile) return (this.queues[t]?.length ?? 0) > 0 ? t : -1;
     const order = ctx.orders[t]?.[0];
     if (order?.kind !== "build") return -1;
@@ -343,16 +361,41 @@ export class WorkSystem implements SlotState {
     if (t < 0) return undefined;
     if (order.kind === "assist") {
       const job = this.jobOf(t);
-      return ctx.focusOf(job >= 0 ? job : t);
+      return ctx.focusOf(job >= 0 ? this.jobSlot(job) : t);
     }
     return ctx.focusOf(t);
   }
 
-  /** Cost of job `j`: its own construction, or its factory's current unit. */
+  /** The entity slot job `j` works on. */
+  private jobSlot(j: number): number {
+    return j >= this.ctx.capacity ? j - this.ctx.capacity : j;
+  }
+
+  /** Cost of job `j`: its own construction or repair, or its factory's current unit. */
   private jobCost(j: number): UnitTypeStats["cost"] | undefined {
     const w = this.ctx.world;
-    const type = (w.progress[j] ?? 0) < 1 ? (w.type[j] ?? 0) : this.queues[j]?.[0];
+    const slot = this.jobSlot(j);
+    const own = slot !== j || (w.progress[j] ?? 0) < 1;
+    const type = own ? (w.type[slot] ?? 0) : this.queues[j]?.[0];
     return type === undefined ? undefined : this.ctx.rules.units[type]?.cost;
+  }
+
+  /** How far job `j` has come, in [0, 1]: health for repair, otherwise build progress. */
+  private jobDone(j: number): number {
+    const w = this.ctx.world;
+    const slot = this.jobSlot(j);
+    if (slot !== j) {
+      const max = this.ctx.rules.units[w.type[slot] ?? 0]?.health ?? 0;
+      return max > 0 ? (w.health[slot] ?? 0) / max : 1;
+    }
+    return (w.progress[j] ?? 0) < 1 ? (w.progress[j] ?? 0) : (this.jobProgress[j] ?? 0);
+  }
+
+  /** Adds `amount` health to slot `i`, up to `max`. */
+  private heal(i: number, amount: number, max: number): void {
+    const w = this.ctx.world;
+    const next = (w.health[i] ?? 0) + amount;
+    w.health[i] = next >= max * DONE ? max : next;
   }
 
   /** Places a new site for `order`, or adopts an identical unfinished one already there. */
@@ -381,7 +424,7 @@ export class WorkSystem implements SlotState {
       return same ? other : -1;
     }
     if (problem !== undefined || w.liveCount >= w.capacity) return -1;
-    const id = w.spawn({
+    const i = ctx.spawnUnit({
       type: order.type,
       owner,
       x: site.x,
@@ -389,8 +432,6 @@ export class WorkSystem implements SlotState {
       heading: facingHeading(order.facing),
       progress: 0,
     });
-    const i = w.resolve(id);
-    ctx.resetSlot(i);
     ctx.markFootprint(i, true);
     return i;
   }
@@ -421,9 +462,7 @@ export class WorkSystem implements SlotState {
         sz = (Math.floor(open / grid.cols) + 0.5) * grid.cellSize;
       }
     }
-    const id = w.spawn({ type, owner: w.owner[f] ?? 0, x: sx, z: sz, heading: h });
-    const u = w.resolve(id);
-    ctx.resetSlot(u);
+    const u = ctx.spawnUnit({ type, owner: w.owner[f] ?? 0, x: sx, z: sz, heading: h });
     this.queues[f]?.shift();
     this.jobProgress[f] = 0;
     const rally = this.hasRally[f] === 1;

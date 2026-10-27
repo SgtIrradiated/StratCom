@@ -19,6 +19,8 @@ export interface InputHost {
   readonly selection: Selection;
   /** Slot of the local player; only that player's units can be selected or commanded. */
   readonly localSlot: number;
+  /** Team per player slot (indexed by slot), to tell enemies from allies. */
+  readonly teams: readonly (number | undefined)[];
   readonly ruleset: SimRuleset;
   readonly terrain: Terrain;
   readonly deposits: readonly Vec2[];
@@ -301,6 +303,7 @@ export class InputController {
       {
         ruleset: this.host.ruleset,
         localSlot: this.host.localSlot,
+        teams: this.host.teams,
         snapshot: proj.snapshot,
         selected: this.host.selection.ids,
       },

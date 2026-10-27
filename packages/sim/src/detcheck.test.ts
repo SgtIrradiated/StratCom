@@ -3,12 +3,12 @@ import { describe, expect, it } from "vitest";
 import { runDetScenario, runSkirmishDetScenario } from "./detcheck";
 import { EntityKind } from "./ecs/world";
 
-// Repinned in M4: the state hash now covers entity kind, build progress, order queues,
-// production queues and every player's economy. Unit movement is unchanged (verified
-// against a positions-only hash of the M3 build).
+// Repinned in M5: the test units are armed and fight (TEST_WEAPONS), units have health, and
+// the state hash covers health, weapon state, projectiles and kill/loss records. The M5
+// system split before it left these hashes unchanged.
 const GOLDEN = [
-  3017797951, 514476606, 2323874495, 2073086898, 2887356052, 2837909201, 2219960130, 2609706589,
-  2391454122, 4216034257,
+  830696657, 3054226357, 2845580709, 3582157984, 2636817060, 504887229, 1044610860, 2946995712,
+  937218288, 377764056,
 ];
 
 describe("runDetScenario", () => {
@@ -22,12 +22,28 @@ describe("runDetScenario", () => {
     // same scenario run in Node.
     expect(runDetScenario()).toEqual(GOLDEN);
   });
+
+  it("includes combat: units die and leave wrecks", () => {
+    runDetScenario((sim) => {
+      for (let slot = 0; slot < 3; slot++) {
+        expect(sim.playerStats(slot).kills, `slot ${slot}`).toBeGreaterThan(0);
+      }
+      let wrecks = 0;
+      const w = sim.state;
+      for (let i = 0; i < w.highWater; i++) {
+        if (w.alive[i] === 1 && w.kind[i] === EntityKind.feature) wrecks++;
+      }
+      expect(wrecks).toBeGreaterThan(0);
+    });
+  });
 });
 
 describe("runSkirmishDetScenario", () => {
   it("is repeatable, the state evolves, and every player builds a working base", () => {
     const built = new Map<number, Set<string>>();
+    let kills = 0;
     const a = runSkirmishDetScenario((sim) => {
+      for (let slot = 0; slot < 4; slot++) kills += sim.playerStats(slot).kills;
       const w = sim.state;
       for (let i = 0; i < w.highWater; i++) {
         if (w.alive[i] === 0 || w.kind[i] !== EntityKind.unit || w.progress[i] !== 1) continue;
@@ -39,6 +55,7 @@ describe("runSkirmishDetScenario", () => {
       }
     });
     expect(runSkirmishDetScenario()).toEqual(a);
+    expect(kills, "the armies meet and fight").toBeGreaterThan(0);
     expect(a).toHaveLength(13);
     expect(new Set(a.slice(1)).size).toBe(12);
     for (let slot = 0; slot < 4; slot++) {

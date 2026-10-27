@@ -28,6 +28,8 @@ export interface SpawnParams {
   heading?: number;
   /** Build progress in [0, 1]; defaults to 1 (complete). */
   progress?: number;
+  /** Hit points; defaults to 0. Units must be given theirs (features have none). */
+  health?: number;
 }
 
 /**
@@ -61,6 +63,8 @@ export class World {
    * Features: the fraction of their salvage not yet reclaimed.
    */
   readonly progress: Float64Array;
+  /** Units: current hit points. A unit at or below 0 is destroyed at the end of the tick. */
+  readonly health: Float64Array;
 
   private readonly freeList: number[] = [];
 
@@ -78,6 +82,7 @@ export class World {
     this.prevZ = new Float64Array(capacity);
     this.heading = new Float64Array(capacity);
     this.progress = new Float64Array(capacity);
+    this.health = new Float64Array(capacity);
   }
 
   /** Creates an entity and returns its id. Throws if the world is full. */
@@ -96,6 +101,7 @@ export class World {
     this.z[i] = this.prevZ[i] = params.z;
     this.heading[i] = params.heading ?? 0;
     this.progress[i] = params.progress ?? 1;
+    this.health[i] = params.health ?? 0;
     this.liveCount++;
     return makeEntityId(i, gen);
   }
@@ -137,7 +143,8 @@ export class World {
         .f64(this.x[i] ?? 0)
         .f64(this.z[i] ?? 0)
         .f64(this.heading[i] ?? 0)
-        .f64(this.progress[i] ?? 0);
+        .f64(this.progress[i] ?? 0)
+        .f64(this.health[i] ?? 0);
     }
   }
 }

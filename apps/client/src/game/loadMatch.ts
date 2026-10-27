@@ -3,7 +3,7 @@ import { hashHex } from "@stratcom/shared";
 import { createSkirmishSetup } from "@stratcom/sim";
 import { GameSession } from "./GameSession";
 import { localSlot, toPlayers, type SkirmishConfig } from "./skirmishConfig";
-import { featureVisualsFromRuleset, visualsFromRuleset } from "./visuals";
+import { featureVisualsFromRuleset, visualsFromRuleset, weaponKindsFromRuleset } from "./visuals";
 
 /** Reports one finished loading step, e.g. `("Terrain", "2,048 m, 4 start positions")`. */
 export type LoadProgress = (label: string, detail: string) => void;
@@ -67,6 +67,7 @@ export async function loadMatch(
     setup,
     unitVisuals: visualsFromRuleset(RULESET),
     featureVisuals: featureVisualsFromRuleset(RULESET),
+    weaponKinds: weaponKindsFromRuleset(RULESET),
     localSlot: me,
     selectionColor: faction.theme.phosphor,
     focusType: compiled.commanderUnit,
