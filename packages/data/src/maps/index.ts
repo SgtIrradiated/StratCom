@@ -17,6 +17,20 @@ const RAW_MAPS: readonly MapInput[] = [
       { x: 0.82, z: 0.2 },
       { x: 0.18, z: 0.8 },
     ],
+    deposits: [
+      { x: 0.5, z: 0.5 },
+      { x: 0.5, z: 0.28 },
+      { x: 0.5, z: 0.72 },
+      { x: 0.28, z: 0.5 },
+      { x: 0.72, z: 0.5 },
+    ],
+    debris: [
+      { x: 0.5, z: 0.5, radius: 90, count: 10, feature: "scrap_heap" },
+      { x: 0.35, z: 0.35, radius: 60, count: 8, feature: "car_wreck" },
+      { x: 0.65, z: 0.65, radius: 60, count: 8, feature: "car_wreck" },
+      { x: 0.65, z: 0.35, radius: 50, count: 3, feature: "derelict_tank" },
+      { x: 0.35, z: 0.65, radius: 50, count: 3, feature: "derelict_tank" },
+    ],
   },
   {
     id: "rustbelt_ridge",
@@ -33,6 +47,20 @@ const RAW_MAPS: readonly MapInput[] = [
       { x: 0.5, z: 0.85 },
     ],
     plateauRadius: 90,
+    deposits: [
+      { x: 0.32, z: 0.32 },
+      { x: 0.68, z: 0.32 },
+      { x: 0.32, z: 0.68 },
+      { x: 0.68, z: 0.68 },
+      { x: 0.5, z: 0.5 },
+    ],
+    debris: [
+      { x: 0.5, z: 0.5, radius: 120, count: 14, feature: "car_wreck" },
+      { x: 0.32, z: 0.5, radius: 40, count: 4, feature: "derelict_tank" },
+      { x: 0.68, z: 0.5, radius: 40, count: 4, feature: "derelict_tank" },
+      { x: 0.5, z: 0.32, radius: 60, count: 6, feature: "scrap_heap" },
+      { x: 0.5, z: 0.68, radius: 60, count: 6, feature: "scrap_heap" },
+    ],
   },
   {
     id: "glassed_flats",
@@ -45,6 +73,17 @@ const RAW_MAPS: readonly MapInput[] = [
     startPositions: [
       { x: 0.22, z: 0.78 },
       { x: 0.78, z: 0.22 },
+    ],
+    startDeposits: 3,
+    deposits: [
+      { x: 0.5, z: 0.5 },
+      { x: 0.3, z: 0.3 },
+      { x: 0.7, z: 0.7 },
+    ],
+    debris: [
+      { x: 0.5, z: 0.5, radius: 70, count: 12, feature: "scrap_heap" },
+      { x: 0.3, z: 0.3, radius: 40, count: 6, feature: "car_wreck" },
+      { x: 0.7, z: 0.7, radius: 40, count: 6, feature: "car_wreck" },
     ],
   },
 ];

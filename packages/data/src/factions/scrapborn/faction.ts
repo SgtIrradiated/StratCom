@@ -19,6 +19,8 @@ export const scrapborn = {
     { unit: "scr_crawler", count: 2 },
   ],
   startingResources: { salvage: 800, power: 1800 },
+  /** Scrapborn crews strip wrecks to the bolts. */
+  reclaimMultiplier: 1.5,
   theme: {
     phosphor: "#ffb000",
     accent: "#e8c547",

@@ -10,9 +10,9 @@ structure changes.
 apps/client      Browser client (Vite + three.js). Deployable.
 apps/server      Node server (Fastify). Deployable. Serves the client build.
 packages/shared  Dependency-free utilities (assert, Brand).
-packages/sim     Deterministic simulation: ECS world, Simulation, skirmish setup, math.
-                 No DOM/Node/renderer.
-packages/data    Content: zod schemas, faction content packs, maps, ruleset compiler.
+packages/sim     Deterministic simulation: ECS world, Simulation (movement, construction,
+                 economy), placement rules, skirmish setup, math. No DOM/Node/renderer.
+packages/data    Content: zod schemas, faction content packs, features, maps, ruleset compiler.
 ```
 
 Libraries are consumed as TypeScript source and have no build step (ADR-0001).
@@ -39,21 +39,40 @@ Enforced by `no-restricted-imports` in `eslint.config.js`. An arrow means "may i
 | `apps/server`                        | three, preact                                                                                      |
 | `packages/*`                         | `@stratcom/client`, `@stratcom/server`                                                             |
 
-## Content pipeline (M3)
+## Content pipeline
 
 ```
 factions/<id>/{faction,units}.ts ─┐
-movement.ts, maps/index.ts ───────┼─▶ compileRuleset() ─▶ RULESET (numeric ids + hash)
+movement.ts, features.ts ─────────┼─▶ compileRuleset() ─▶ RULESET (numeric ids + hash)
                                   │        zod + cross-references, all problems at once
-                                  ▼
-Skirmish config (slots, map) ─▶ createSkirmishSetup() ─▶ MatchSetup ─▶ Simulation
-                                  terrain + plateaus, commander + starting force per slot
+maps/index.ts ──────┐             ▼
+Skirmish config ────┴─▶ createSkirmishSetup() ─▶ MatchSetup ─▶ Simulation
+                         terrain + plateaus + deposit pads, deposits, debris,
+                         commander + starting force, starting resources per slot
 ```
 
 The sim reads rules through the structural `SimRuleset` interface (ADR-0009), so tests and
 the pinned determinism scenario can use a tiny fixed ruleset.
 
-## Runtime: current (M3)
+## Simulation tick (M4)
+
+`Simulation.step(commands)` runs, in order (docs/PLAN.md §4.4, ADR-0010):
+
+1. **Commands**: validated against ownership and the ruleset, then turned into per-unit order
+   queues (move, build, reclaim, assist), factory production queues or rally points.
+2. **Movement**: each unit works on the head of its queue. Move orders follow a flow field
+   shared by the command's group; work orders walk into build range of their target through
+   a small cache of shared fields.
+3. **Separation**: mobile units push apart and out of structures; features take no part.
+4. **Work and economy**: builders place sites and add build power to jobs, factories produce,
+   reclaimers strip debris, then each player's income, storage and stall factor are settled
+   and every job advances by `step × stall factor`.
+
+Structures mark their footprint in an occupancy grid and in every navigation grid, so units
+path around them. `placement.ts` holds the placement rules as pure functions, which the
+client's placement ghost reuses.
+
+## Runtime: current (M4)
 
 ```
 Main thread                                         Sim Worker (apps/client/src/sim)
@@ -65,9 +84,12 @@ Main thread                                         Sim Worker (apps/client/src/
 │      ├─ sim/SimClient                   │          └───────────────────────────────┘
 │      ├─ render/ Terrain+Unit+Icon layers│  (3 recycled buffer sets, transferred)
 │      └─ input/ InputController+Selection│
-│  InGame HUD reads the session; orders go through input as commands │
+│  InGame HUD reads the session (economy, queues); orders are commands│
 └─────────────────────────────────────────┘
 ```
+
+Snapshots carry, per entity, kind (unit or feature), owner, type, position, heading and
+build progress, plus every player's economy figures and the factory queues the HUD shows.
 
 Each `GameSession` creates a fresh canvas and releases its WebGL context on dispose, so a
 second match never reuses a lost context. `?bench=N` starts a session directly, skipping

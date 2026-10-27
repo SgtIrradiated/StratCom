@@ -31,8 +31,8 @@ import { renderBootError } from "./ui/bootPanel";
 
 /** Placeholder looks for the bench scenario, index-aligned with `TEST_UNIT_TYPES`. */
 const BENCH_VISUALS: readonly UnitVisual[] = [
-  { size: [4, 3, 6], radius: TEST_UNIT_TYPES[0].radius, icon: "circle" },
-  { size: [7, 4, 10], radius: TEST_UNIT_TYPES[1].radius, icon: "diamond" },
+  { size: [4, 3, 6], radius: TEST_UNIT_TYPES[0]?.radius ?? 2, icon: "circle" },
+  { size: [7, 4, 10], radius: TEST_UNIT_TYPES[1]?.radius ?? 3, icon: "diamond" },
 ];
 
 const ui = document.querySelector<HTMLElement>("#ui");

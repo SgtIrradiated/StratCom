@@ -18,9 +18,21 @@ export interface UnitVisual {
   icon: IconShape;
 }
 
+/** How one feature type (debris, wrecks) is drawn. Indexed by the sim's feature type id. */
+export interface FeatureVisual {
+  /** Box dimensions in metres: width (x), height (y), length (z). */
+  size: readonly [number, number, number];
+  /** CSS hex colour. */
+  color: string;
+}
+
 export interface SceneOptions {
   /** One entry per unit type id used by the simulation. */
   unitVisuals: readonly UnitVisual[];
+  /** One entry per feature type id. */
+  featureVisuals: readonly FeatureVisual[];
+  /** Salvage deposits, drawn as markers on the ground. */
+  deposits: readonly GroundPoint[];
   /** CSS hex colour per player slot, indexed by slot. */
   playerColors: readonly string[];
   /** Maximum number of units that can be drawn (snapshot capacity). */
@@ -34,6 +46,21 @@ export interface SceneOptions {
 export interface GroundPoint {
   x: number;
   z: number;
+}
+
+/** The translucent preview of a structure being placed. */
+export interface PlacementGhost {
+  /** Centre on the ground, in metres. */
+  x: number;
+  z: number;
+  /** Footprint in metres along x and z (already rotated). */
+  width: number;
+  depth: number;
+  /** Placeholder box size of the structure, before rotation. */
+  size: readonly [number, number, number];
+  heading: number;
+  /** Green when the site is buildable, red when it is not. */
+  valid: boolean;
 }
 
 /** Camera operations the input layer may use. Distances are metres, angles radians. */
@@ -68,6 +95,8 @@ export interface GameRenderer {
    * the camera get NaN.
    */
   projectUnits(snapshot: SnapshotBuffers, alpha: number, out: Float32Array): void;
+  /** Shows the placement ghost, or hides it with undefined. */
+  setGhost(ghost: PlacementGhost | undefined): void;
   /** Ground point under normalised device coordinates (-1…1, y up), if the ray hits it. */
   groundAt(ndcX: number, ndcY: number): GroundPoint | undefined;
   /** Advances camera smoothing/LOD and draws one frame. */

@@ -1,5 +1,6 @@
 import type { CompiledRuleset } from "@stratcom/data";
-import { TICK_RATE, type SnapshotBuffers } from "@stratcom/sim";
+import { EntityKind, TICK_RATE, type SnapshotBuffers } from "@stratcom/sim";
+import { selectionRoles } from "../input/orders";
 
 /** One line of the selection panel: a unit type and how many of it are selected. */
 export interface SelectionGroup {
@@ -18,7 +19,7 @@ export function summarizeSelection(
   const counts = new Map<number, number>();
   if (selected.size > 0) {
     for (let i = 0; i < snapshot.count; i++) {
-      if (!selected.has(snapshot.ids[i] ?? 0)) continue;
+      if (!selected.has(snapshot.ids[i] ?? 0) || snapshot.kinds[i] !== EntityKind.unit) continue;
       const t = snapshot.types[i] ?? 0;
       counts.set(t, (counts.get(t) ?? 0) + 1);
     }
@@ -26,17 +27,67 @@ export function summarizeSelection(
   return [...counts].map(([type, count]) => ({ type, count })).sort((a, b) => a.type - b.type);
 }
 
+/** One button of the build panel. */
+export interface BuildOption {
+  type: number;
+  /** `place`: builders construct it on the map. `produce`: factories queue it. */
+  mode: "place" | "produce";
+  /** Units of this type queued across the selected factories. */
+  queued: number;
+}
+
 /**
- * Everything the selected types can build, deduplicated, in the order the first builder
- * lists them.
+ * The build panel for the current selection: structures the selected builders can place,
+ * then units the selected factories can produce, each listed once in the order the first
+ * selected unit lists them. Unfinished units contribute nothing.
  */
-export function buildOptions(
+export function buildMenu(
   ruleset: CompiledRuleset,
-  groups: readonly SelectionGroup[],
-): number[] {
+  snapshot: SnapshotBuffers,
+  selected: ReadonlySet<number>,
+  localSlot: number,
+): BuildOption[] {
+  const roles = selectionRoles({ ruleset, localSlot, snapshot, selected });
+  const typeOf = new Map<number, number>();
+  for (let i = 0; i < snapshot.count; i++) typeOf.set(snapshot.ids[i] ?? 0, snapshot.types[i] ?? 0);
+  const options: BuildOption[] = [];
   const seen = new Set<number>();
-  for (const g of groups) for (const b of ruleset.units[g.type]?.builds ?? []) seen.add(b);
-  return [...seen];
+  const collect = (ids: readonly number[], mode: BuildOption["mode"]): void => {
+    for (const id of ids) {
+      for (const b of ruleset.units[typeOf.get(id) ?? -1]?.builds ?? []) {
+        if (seen.has(b)) continue;
+        seen.add(b);
+        options.push({ type: b, mode, queued: 0 });
+      }
+    }
+  };
+  collect(roles.builders, "place");
+  collect(roles.factories, "produce");
+  const factories = new Set(roles.factories);
+  for (const p of snapshot.production) {
+    if (!factories.has(p.id)) continue;
+    for (const t of p.queue) {
+      const option = options.find((o) => o.type === t && o.mode === "produce");
+      if (option) option.queued++;
+    }
+  }
+  return options;
+}
+
+/** A resource amount for the HUD: whole units with thousands separators. */
+export function formatAmount(n: number): string {
+  return Math.floor(n).toLocaleString("en");
+}
+
+/** A per-second rate for the HUD with an explicit sign, e.g. `+3.5` or `-12`. */
+export function formatRate(n: number): string {
+  const rounded = Math.abs(n) >= 100 ? Math.round(n) : Math.round(n * 10) / 10;
+  return `${rounded >= 0 ? "+" : "-"}${Math.abs(rounded).toLocaleString("en")}`;
+}
+
+/** A per-second spending figure, always shown as an outflow: `-18`, or `-0` when idle. */
+export function formatSpending(n: number): string {
+  return `-${formatRate(Math.abs(n)).slice(1)}`;
 }
 
 /** Match clock for a tick count: `mm:ss`, or `h:mm:ss` from one hour. */
@@ -52,6 +103,7 @@ export function formatClock(ticks: number): string {
 /** Snapshot index of the first unit of `type` owned by `owner`, or -1 if there is none. */
 export function findUnit(snapshot: SnapshotBuffers, owner: number, type: number): number {
   for (let i = 0; i < snapshot.count; i++) {
+    if (snapshot.kinds[i] !== EntityKind.unit) continue;
     if (snapshot.owners[i] === owner && snapshot.types[i] === type) return i;
   }
   return -1;

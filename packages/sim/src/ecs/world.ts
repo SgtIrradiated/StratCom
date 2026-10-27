@@ -2,16 +2,32 @@ import { assert } from "@stratcom/shared";
 import type { StateHasher } from "../math/hash";
 import { MAX_ENTITIES, entityGeneration, entityIndex, makeEntityId, type EntityId } from "./entity";
 
+/** What an entity is. `type` indexes a different table for each kind. */
+export const EntityKind = {
+  /** A unit or structure: `type` indexes `SimRuleset.units`. */
+  unit: 0,
+  /** Neutral debris or a wreck: `type` indexes `SimRuleset.features`. */
+  feature: 1,
+} as const;
+export type EntityKind = (typeof EntityKind)[keyof typeof EntityKind];
+
+/** Owner of entities that belong to no player (features). */
+export const NEUTRAL_OWNER = 255;
+
 /** Parameters for {@link World.spawn}. */
 export interface SpawnParams {
-  /** Index into the match's unit-type table. */
+  /** Defaults to {@link EntityKind.unit}. */
+  kind?: EntityKind;
+  /** Index into the match's unit-type (or feature-type) table. */
   type: number;
-  /** Owning player slot. */
+  /** Owning player slot, or {@link NEUTRAL_OWNER}. */
   owner: number;
   x: number;
   z: number;
   /** Initial heading in radians; 0 faces +z. */
   heading?: number;
+  /** Build progress in [0, 1]; defaults to 1 (complete). */
+  progress?: number;
 }
 
 /**
@@ -30,6 +46,8 @@ export class World {
 
   readonly alive: Uint8Array;
   readonly generation: Uint16Array;
+  /** {@link EntityKind} per slot. */
+  readonly kind: Uint8Array;
   readonly type: Uint16Array;
   readonly owner: Uint8Array;
   readonly x: Float64Array;
@@ -38,6 +56,11 @@ export class World {
   readonly prevX: Float64Array;
   readonly prevZ: Float64Array;
   readonly heading: Float64Array;
+  /**
+   * Units: build progress, 1 when complete. Unfinished units do nothing until built.
+   * Features: the fraction of their salvage not yet reclaimed.
+   */
+  readonly progress: Float64Array;
 
   private readonly freeList: number[] = [];
 
@@ -46,6 +69,7 @@ export class World {
     assert(capacity > 0 && capacity <= MAX_ENTITIES, `capacity out of range: ${capacity}`);
     this.alive = new Uint8Array(capacity);
     this.generation = new Uint16Array(capacity);
+    this.kind = new Uint8Array(capacity);
     this.type = new Uint16Array(capacity);
     this.owner = new Uint8Array(capacity);
     this.x = new Float64Array(capacity);
@@ -53,6 +77,7 @@ export class World {
     this.prevX = new Float64Array(capacity);
     this.prevZ = new Float64Array(capacity);
     this.heading = new Float64Array(capacity);
+    this.progress = new Float64Array(capacity);
   }
 
   /** Creates an entity and returns its id. Throws if the world is full. */
@@ -64,11 +89,13 @@ export class World {
     if (gen > 0xfff) gen = 1; // 12-bit generation; never 0 so that id 0 stays invalid
     this.generation[i] = gen;
     this.alive[i] = 1;
+    this.kind[i] = params.kind ?? EntityKind.unit;
     this.type[i] = params.type;
     this.owner[i] = params.owner;
     this.x[i] = this.prevX[i] = params.x;
     this.z[i] = this.prevZ[i] = params.z;
     this.heading[i] = params.heading ?? 0;
+    this.progress[i] = params.progress ?? 1;
     this.liveCount++;
     return makeEntityId(i, gen);
   }
@@ -104,11 +131,13 @@ export class World {
       h.u32(this.alive[i] ?? 0);
       if (this.alive[i] === 0) continue;
       h.u32(this.generation[i] ?? 0)
+        .u32(this.kind[i] ?? 0)
         .u32(this.type[i] ?? 0)
         .u32(this.owner[i] ?? 0)
         .f64(this.x[i] ?? 0)
         .f64(this.z[i] ?? 0)
-        .f64(this.heading[i] ?? 0);
+        .f64(this.heading[i] ?? 0)
+        .f64(this.progress[i] ?? 0);
     }
   }
 }

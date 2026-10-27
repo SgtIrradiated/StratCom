@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildNavGrid, cellAt } from "./navigation";
-import { createTestMatch, scriptedCommands } from "./scenario";
+import { TEST_UNIT_TYPES, createTestMatch, scriptedCommands } from "./scenario";
 import { Simulation } from "./simulation";
 import { createSnapshotBuffers } from "./snapshot";
 
@@ -123,8 +123,17 @@ describe("Simulation movement", () => {
         movementClasses: base.ruleset.movementClasses,
         units: [
           ...base.ruleset.units,
-          { mobile: false, movementClass: -1, radius: 8, speed: 0, turnRate: 0 },
+          {
+            ...TEST_UNIT_TYPES[0]!,
+            mobile: false,
+            movementClass: -1,
+            radius: 8,
+            speed: 0,
+            turnRate: 0,
+            footprint: { x: 2, z: 2 },
+          },
         ],
+        features: [],
       },
       initialUnits: [
         { slot: 0, type: 2, x: 500, z: 500 },

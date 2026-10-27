@@ -12,6 +12,9 @@ adding a faction, unit or map must never require engine changes (ADR-0006).
 | Two content packs: 7–8 units and 3–5 weapons per faction               | ✅ M3 (placeholder stats) |
 | `MapDef` (procedural map format v0) and three skirmish maps            | ✅ M3                     |
 | `compileRuleset`: cross-checks, numeric ids, ruleset hash              | ✅ M3 (ADR-0009)          |
+| Build fields (`buildRate`, `buildRange`, `placement`), builder checks  | ✅ M4 (ADR-0010)          |
+| `FeatureDef` and shared debris; map deposits and debris fields         | ✅ M4                     |
+| Faction `reclaimMultiplier`                                            | ✅ M4                     |
 | Authored heightmaps (map format v1)                                    | Content track             |
 
 ## Public API
@@ -21,7 +24,8 @@ import { FACTIONS, MAPS, RULESET, getFaction, getMap, rulesetUnit } from "@strat
 
 RULESET.units[3]; // CompiledUnit with numeric cross-references
 RULESET.hash; // 32-bit fingerprint of all content
-compileRuleset({ movementClasses, packs }); // throws RulesetError listing every problem
+RULESET.features[0]; // CompiledFeature: neutral debris
+compileRuleset({ movementClasses, features, packs }); // throws RulesetError listing every problem
 ```
 
 `RULESET` is compiled once when the module loads, so bad content fails at start-up, never

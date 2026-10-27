@@ -13,15 +13,18 @@ multiplayer, replays, and desync detection all rely on this property.
 | `TICK_RATE` / `TICK_MS`                          | ✅ M0 (20 Hz, ADR-0007)                 |
 | `math/trig`, `math/vec` — `sin`, `cos`, `atan2`  | ✅ M1, polynomial, ~1e-9 accurate       |
 | `ecs/` — `World` (SoA, generational ids)         | ✅ M1 (ADR-0005)                        |
-| `Simulation` — `step`, `stateHash`, snapshots    | ✅ M1: command ingest + movement only   |
+| `Simulation` — `step`, `stateHash`, snapshots    | ✅ M1; order queues and work in M4      |
 | `detcheck` — cross-runtime determinism scenario  | ✅ M1 (`e2e/determinism.spec.ts`)       |
 | `terrain` — heightmap, height sampling, raycast  | ✅ M2                                   |
 | `navigation` — nav grids, flow fields, LOS       | ✅ M2 (one field per move command)      |
 | `spatialGrid` + separation steering              | ✅ M2; structures never move (M3)       |
 | `SimRuleset` — rules by numeric id               | ✅ M3 (ADR-0009)                        |
 | `skirmish` — `createSkirmishSetup`, map plateaus | ✅ M3                                   |
-| `runSkirmishDetScenario` — real-content detcheck | ✅ M3 (4 players, all movement classes) |
-| Economy, combat, fog                             | M4+ (see `docs/ROADMAP.md`)             |
+| `runSkirmishDetScenario` — real-content detcheck | ✅ M3; builds bases since M4            |
+| `economy` — flow economy, stall factor           | ✅ M4 (ADR-0010)                        |
+| `placement` — snapping, footprints, deposits     | ✅ M4, shared with the client ghost     |
+| Construction, factories, reclaim, features       | ✅ M4 (ADR-0010)                        |
+| Combat, fog                                      | M5 (see `docs/ROADMAP.md`)              |
 
 ## Rules (enforced by ESLint and `tsconfig.json`)
 
@@ -54,11 +57,19 @@ const sim = new Simulation(setup); // MatchSetup: seed, terrain, N player slots,
 sim.step(commands); // exactly one tick; commands are validated, never trusted
 sim.stateHash(); // 32-bit hash of the full state (desync detection)
 sim.writeSnapshot(buffers); // fills reusable typed arrays for the renderer
+sim.economy(slot); // stored, capacity, income, spending, demand, stall factor
 ```
 
 `createSkirmishSetup` turns lobby settings into a `MatchSetup`: it generates the map with
-flattened start plateaus and spawns each player's commander and starting force. It is pure,
-so every peer derives the same setup.
+flattened start plateaus and deposit pads, places deposits and debris, and spawns each
+player's commander and starting force with the faction's starting resources. It is pure, so
+every peer derives the same setup.
+
+Commands (`commands.ts`): `move`, `stop`, `build`, `reclaim`, `assist`, `produce`, `rally`.
+Work orders hold entity ids and are re-resolved every tick. How construction, factories,
+reclaim and the stall factor work is in
+[ADR-0010](../../docs/adr/0010-flow-economy-and-construction.md); `construction.test.ts`
+shows each rule on a small flat test map.
 
 `createTestMatch(n)` and `scriptedCommands()` build the stress scenario used by tests,
 `?bench=N` and the determinism check. It runs on the fixed `TEST_RULESET`, so content

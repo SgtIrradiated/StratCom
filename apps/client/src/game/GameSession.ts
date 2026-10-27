@@ -1,9 +1,16 @@
-import { TICK_MS, type MatchSetup, type SnapshotBuffers } from "@stratcom/sim";
+import {
+  EntityKind,
+  TICK_MS,
+  setupCapacity,
+  type MatchSetup,
+  type PlayerCommand,
+  type SnapshotBuffers,
+} from "@stratcom/sim";
 import type { StatsPanel } from "../bench/stats";
 import { InputController } from "../input/InputController";
 import { Selection } from "../input/selection";
 import { createSceneRenderer } from "../render/SceneRenderer";
-import type { GameRenderer, UnitVisual } from "../render/types";
+import type { FeatureVisual, GameRenderer, UnitVisual } from "../render/types";
 import { SimClient } from "../sim/SimClient";
 import { findUnit } from "./hudModel";
 
@@ -12,6 +19,8 @@ export interface SessionOptions {
   setup: MatchSetup;
   /** Placeholder looks, indexed by unit type id. */
   unitVisuals: readonly UnitVisual[];
+  /** Placeholder looks, indexed by feature type id. */
+  featureVisuals?: readonly FeatureVisual[];
   /** Slot of the local (human) player. */
   localSlot: number;
   /** Drive the match with the built-in scripted commands (demo and `?bench=N`). */
@@ -57,8 +66,10 @@ export class GameSession {
     for (const p of setup.players) players[p.slot] = p.color;
     this.renderer = createSceneRenderer(this.canvas, {
       unitVisuals: options.unitVisuals,
+      featureVisuals: options.featureVisuals ?? [],
+      deposits: setup.deposits ?? [],
       playerColors: Array.from(players, (c) => c ?? "#808080"),
-      maxUnits: setup.capacity ?? setup.initialUnits.length + 4096,
+      maxUnits: setupCapacity(setup),
       terrain: setup.terrain,
       ...(options.selectionColor ? { selectionColor: options.selectionColor } : {}),
     });
@@ -85,11 +96,19 @@ export class GameSession {
       renderer: this.renderer,
       selection: this.selection,
       localSlot: options.localSlot,
+      ruleset: setup.ruleset,
+      terrain: setup.terrain,
+      deposits: setup.deposits ?? [],
+      unitVisuals: options.unitVisuals,
       current: () => (this.current ? { snapshot: this.current, alpha: this.alpha() } : undefined),
       command: (cmd) => {
-        this.sim.sendCommands([cmd]);
+        this.issue(cmd);
       },
     });
+    this.input.onPlacementChange = (type) => {
+      if (type === undefined) delete document.documentElement.dataset["placing"];
+      else document.documentElement.dataset["placing"] = String(type);
+    };
 
     const resize = (): void => {
       this.renderer.resize(this.canvas.clientWidth, this.canvas.clientHeight, devicePixelRatio);
@@ -107,6 +126,10 @@ export class GameSession {
       if (snap) {
         this.renderer.setUnits(snap, this.alpha(), this.selection.ids);
         root["selected"] = String(this.selection.ids.size);
+        root["units"] = String(countOwned(snap, options.localSlot));
+        const ghost = this.input.ghostValid;
+        if (ghost === undefined) delete root["ghost"];
+        else root["ghost"] = ghost ? "valid" : "invalid";
         root["zoom"] = this.renderer.strategicBlend.toFixed(2);
       }
       this.renderer.render(time);
@@ -135,7 +158,28 @@ export class GameSession {
   setPaused(paused: boolean): void {
     this.isPaused = paused;
     this.input.enabled = !paused;
+    if (paused) this.input.cancelPlacement();
     this.sim.setPaused(paused);
+  }
+
+  /** Sends a command from the local player to the simulation (HUD buttons use this). */
+  issue(cmd: PlayerCommand): void {
+    this.sim.sendCommands([cmd]);
+  }
+
+  /** Structure type being placed, if the player is placing one. */
+  get placing(): number | undefined {
+    return this.input.placingType;
+  }
+
+  /** Starts placing structure `type` for the selected builders. */
+  beginPlacement(type: number): void {
+    this.input.beginPlacement(type);
+  }
+
+  /** Leaves placement mode. */
+  cancelPlacement(): void {
+    this.input.cancelPlacement();
   }
 
   /** Centres the camera on the local player's first unit of `type`. Returns false if none. */
@@ -172,6 +216,9 @@ export class GameSession {
     const root = document.documentElement.dataset;
     delete root["selected"];
     delete root["zoom"];
+    delete root["units"];
+    delete root["placing"];
+    delete root["ghost"];
   }
 
   private alpha(): number {
@@ -193,6 +240,15 @@ export class GameSession {
     cam.zoomAt(0, 0, START_DISTANCE / cam.distance);
     cam.focus(start.x, start.z);
   }
+}
+
+/** Number of units and structures (finished or not) owned by `slot`. */
+function countOwned(snap: SnapshotBuffers, slot: number): number {
+  let n = 0;
+  for (let i = 0; i < snap.count; i++) {
+    if (snap.owners[i] === slot && snap.kinds[i] === EntityKind.unit) n++;
+  }
+  return n;
 }
 
 /** Swaps `#viewport` for a fresh canvas, so every session starts with a clean context. */

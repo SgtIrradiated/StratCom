@@ -47,7 +47,9 @@ export const directorateUnits = [
     movement: { class: "legged", speed: 5.5, turnRate: 2.5 },
     weapons: ["dir_arc_projector"],
     builds: ECONOMY_STRUCTURES,
-    economy: { salvagePerSec: 1, powerPerSec: 20, storageSalvage: 500, storagePower: 5000 },
+    buildRate: 2,
+    buildRange: 14,
+    economy: { salvagePerSec: 1, powerPerSec: 20, storageSalvage: 800, storagePower: 5000 },
     visual: { size: [6, 8, 6], icon: "star" },
   },
   {
@@ -62,6 +64,7 @@ export const directorateUnits = [
     vision: 300,
     movement: { class: "tracked", speed: 6, turnRate: 3 },
     builds: ECONOMY_STRUCTURES,
+    buildRate: 1,
     visual: { size: [3, 3, 4], icon: "circle" },
   },
   {
@@ -75,6 +78,7 @@ export const directorateUnits = [
     radius: 6,
     vision: 200,
     footprint: { x: 2, z: 2 },
+    placement: "deposit",
     economy: { salvagePerSec: 2 },
     visual: { size: [10, 7, 10], icon: "square" },
   },
@@ -104,6 +108,7 @@ export const directorateUnits = [
     vision: 300,
     footprint: { x: 4, z: 4 },
     builds: ["dir_technician", "dir_warden", "dir_lancer"],
+    buildRate: 1,
     visual: { size: [24, 10, 24], icon: "hexagon" },
   },
   {

@@ -38,6 +38,13 @@ export type WeaponInput = z.input<typeof WeaponDef>;
 export const UnitRole = z.enum(["commander", "engineer", "land", "economy", "factory", "defense"]);
 export type UnitRole = z.infer<typeof UnitRole>;
 
+/**
+ * Where a structure may stand: anywhere buildable (`ground`), or centred on a salvage
+ * deposit (`deposit`, for extractors).
+ */
+export const Placement = z.enum(["ground", "deposit"]);
+export type Placement = z.infer<typeof Placement>;
+
 /** Strategic-zoom icon shape. */
 export const IconShape = z.enum(["circle", "square", "triangle", "diamond", "star", "hexagon"]);
 export type IconShape = z.infer<typeof IconShape>;
@@ -84,6 +91,16 @@ export const UnitDef = z
     weapons: z.array(ContentId).default([]),
     /** Unit ids this unit can construct (structures for engineers, units for factories). */
     builds: z.array(ContentId).default([]),
+    /**
+     * Build power. A builder with `buildRate` 1 finishes a unit in its `cost.buildTime`
+     * seconds; assisting builders add their rates. Also sets reclaim speed. Required (> 0)
+     * for anything with `builds`.
+     */
+    buildRate: z.number().min(0).max(100).default(0),
+    /** How far, in metres from its own edge to the target's edge, a mobile builder reaches. */
+    buildRange: z.number().positive().max(200).default(10),
+    /** Structures only: where it may be placed. */
+    placement: Placement.default("ground"),
     economy: z
       .object({
         salvagePerSec: z.number().min(0).default(0),
@@ -104,6 +121,17 @@ export const UnitDef = z
     }
     if (u.movement && u.footprint) {
       ctx.addIssue({ code: "custom", message: "mobile units must not have a footprint" });
+    }
+    if (u.builds.length > 0 && u.buildRate <= 0) {
+      ctx.addIssue({ code: "custom", message: "units with builds need a buildRate above 0" });
+    }
+    if (u.placement === "deposit") {
+      if (u.movement) {
+        ctx.addIssue({ code: "custom", message: "only structures can need a deposit" });
+      } else if (u.footprint && (u.footprint.x % 2 !== 0 || u.footprint.z % 2 !== 0)) {
+        // Deposits sit on cell corners, so only an even footprint can be centred on one.
+        ctx.addIssue({ code: "custom", message: "deposit structures need an even footprint" });
+      }
     }
   });
 /** A validated unit (defaults applied). */

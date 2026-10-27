@@ -2,11 +2,13 @@ import { assert, fnv1a32 } from "@stratcom/shared";
 import type { z } from "zod";
 import type { ContentPack } from "./factions/index";
 import { FactionDef } from "./schema/faction";
+import { FeatureDef } from "./schema/feature";
 import {
   MovementClassDef,
   UnitDef,
   WeaponDef,
   type IconShape,
+  type Placement,
   type UnitRole,
   type WeaponKind,
 } from "./schema/unit";
@@ -58,6 +60,11 @@ export interface CompiledUnit {
   footprint: { x: number; z: number };
   weapons: readonly number[];
   builds: readonly number[];
+  /** Build power; 0 for units that cannot build. */
+  buildRate: number;
+  /** Metres from this unit's edge to its target's edge. */
+  buildRange: number;
+  placement: Placement;
   economy: {
     salvagePerSec: number;
     powerPerSec: number;
@@ -75,8 +82,20 @@ export interface CompiledFaction {
   commanderUnit: number;
   startingUnits: readonly { unit: number; count: number }[];
   startingResources: { salvage: number; power: number };
+  reclaimMultiplier: number;
   /** Unit indices of everything this faction can field, in authoring order. */
   roster: readonly number[];
+}
+
+/** A neutral feature (debris, later wrecks) with its numeric id. */
+export interface CompiledFeature {
+  index: number;
+  id: string;
+  name: string;
+  description: string;
+  salvage: number;
+  radius: number;
+  visual: { size: readonly [number, number, number]; color: string };
 }
 
 /**
@@ -90,11 +109,14 @@ export interface CompiledRuleset {
   weapons: readonly CompiledWeapon[];
   units: readonly CompiledUnit[];
   factions: readonly CompiledFaction[];
+  features: readonly CompiledFeature[];
 }
 
 /** Raw content for {@link compileRuleset}. Everything is validated, so `unknown` is fine. */
 export interface RulesetSource {
   movementClasses: readonly unknown[];
+  /** Neutral features; optional so faction-only tests can leave it out. */
+  features?: readonly unknown[];
   packs: readonly Pick<ContentPack, "faction" | "units" | "weapons">[];
 }
 
@@ -141,6 +163,9 @@ export function compileRuleset(source: RulesetSource): CompiledRuleset {
       p.weapons.map((w, i) => parse(WeaponDef, w, label(w, "weapon", i))),
     ),
   );
+  const features = defined(
+    (source.features ?? []).map((f, i) => parse(FeatureDef, f, label(f, "feature", i))),
+  );
   const units = defined(
     source.packs.flatMap((p, pi) =>
       p.units.map((u, i) => {
@@ -168,6 +193,7 @@ export function compileRuleset(source: RulesetSource): CompiledRuleset {
   const factionIx = index(factions, "faction");
   const weaponIx = index(weapons, "weapon");
   const unitIx = index(units, "unit");
+  index(features, "feature");
   const ref = (map: Map<string, number>, id: string, kind: string, from: string): number => {
     const i = map.get(id);
     if (i === undefined) problems.push(`${from} references unknown ${kind} "${id}"`);
@@ -182,6 +208,14 @@ export function compileRuleset(source: RulesetSource): CompiledRuleset {
       const target = units[unitIx.get(b) ?? -1];
       if (target && target.faction !== u.faction) {
         problems.push(`${from} builds "${b}" from another faction`);
+      }
+      // Mobile builders place structures; structures (factories) turn out mobile units.
+      if (target && (target.movement === undefined) === (u.movement === undefined)) {
+        problems.push(
+          u.movement
+            ? `${from} is mobile, so it can only build structures, not "${b}"`
+            : `${from} is a structure, so it can only build mobile units, not "${b}"`,
+        );
       }
     }
     return {
@@ -203,6 +237,9 @@ export function compileRuleset(source: RulesetSource): CompiledRuleset {
       footprint: { x: u.footprint?.x ?? 0, z: u.footprint?.z ?? 0 },
       weapons: u.weapons.map((w) => ref(weaponIx, w, "weapon", from)),
       builds,
+      buildRate: u.buildRate,
+      buildRange: u.buildRange,
+      placement: u.placement,
       economy: {
         salvagePerSec: u.economy.salvagePerSec,
         powerPerSec: u.economy.powerPerSec,
@@ -237,6 +274,7 @@ export function compileRuleset(source: RulesetSource): CompiledRuleset {
         count: s.count,
       })),
       startingResources: { salvage: f.startingResources.salvage, power: f.startingResources.power },
+      reclaimMultiplier: f.reclaimMultiplier,
       roster,
     };
   });
@@ -263,6 +301,15 @@ export function compileRuleset(source: RulesetSource): CompiledRuleset {
     })),
     units: compiledUnits,
     factions: compiledFactions,
+    features: features.map((f, i) => ({
+      index: i,
+      id: f.id,
+      name: f.name,
+      description: f.description,
+      salvage: f.salvage,
+      radius: f.radius,
+      visual: { size: f.visual.size, color: f.visual.color },
+    })),
   };
   // Every object above is built with a fixed key order and JSON number formatting is exactly
   // specified, so this string, and the hash, is identical in every engine.
@@ -274,6 +321,13 @@ export function rulesetUnit(ruleset: CompiledRuleset, id: string): CompiledUnit 
   const unit = ruleset.units.find((u) => u.id === id);
   assert(unit, `Unknown unit "${id}"`);
   return unit;
+}
+
+/** Looks up a compiled feature by string id. Throws if unknown. */
+export function rulesetFeature(ruleset: CompiledRuleset, id: string): CompiledFeature {
+  const feature = ruleset.features.find((f) => f.id === id);
+  assert(feature, `Unknown feature "${id}"`);
+  return feature;
 }
 
 /** Looks up a compiled faction by string id. Throws if unknown. */

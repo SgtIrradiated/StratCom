@@ -1,8 +1,9 @@
 import { MAPS, RULESET, getMap, rulesetFaction, rulesetUnit } from "@stratcom/data";
 import { describe, expect, it } from "vitest";
 import { buildNavGrid, cellAt } from "./navigation";
+import { placementProblem, snapSite } from "./placement";
 import { Simulation, type PlayerSetup } from "./simulation";
-import { createSkirmishSetup } from "./skirmish";
+import { createSkirmishSetup, mapDeposits } from "./skirmish";
 import { sampleHeight, terrainWidth } from "./terrain";
 
 const PLAYERS: readonly PlayerSetup[] = [
@@ -71,7 +72,62 @@ describe("createSkirmishSetup", () => {
       b.step([]);
     }
     expect(a.stateHash()).toBe(b.stateHash());
-    expect(a.entityCount).toBe(setupFor().initialUnits.length);
+    const setup = setupFor();
+    expect(a.entityCount).toBe(setup.initialUnits.length + (setup.features?.length ?? 0));
+  });
+
+  it("gives every slot buildable start deposits, and each player its faction's economy", () => {
+    for (const map of MAPS) {
+      const players = map.startPositions.map((_, slot) => ({
+        slot,
+        team: slot,
+        factionId: slot % 2 === 0 ? "directorate" : "scrapborn",
+        color: "#ffffff",
+      }));
+      const setup = setupFor(map.id, players);
+      const deposits = setup.deposits ?? [];
+      expect(deposits).toEqual(mapDeposits(map));
+      const size = terrainWidth(setup.terrain);
+      const extractor = rulesetUnit(RULESET, "dir_extractor");
+      for (const [slot, start] of map.startPositions.entries()) {
+        const near = deposits.filter(
+          (d) => Math.hypot(d.x - start.x * size, d.z - start.z * size) <= map.plateauRadius,
+        );
+        expect(near.length, `${map.id} slot ${slot}`).toBe(map.startDeposits);
+        for (const d of near) {
+          const site = snapSite(setup.terrain, extractor, 0, d.x, d.z, deposits)!;
+          expect(placementProblem(setup.terrain, extractor, site, deposits, () => false)).toBe(
+            undefined,
+          );
+        }
+      }
+      // Field deposits sit on flattened pads, so they are buildable too.
+      for (const d of deposits.slice(map.startPositions.length * map.startDeposits)) {
+        const site = snapSite(setup.terrain, extractor, 0, d.x, d.z, deposits)!;
+        expect(placementProblem(setup.terrain, extractor, site, deposits, () => false)).toBe(
+          undefined,
+        );
+      }
+      for (const p of setup.players) {
+        const f = rulesetFaction(RULESET, p.factionId);
+        expect(p.startingResources).toEqual(f.startingResources);
+        expect(p.reclaimMultiplier).toBe(f.reclaimMultiplier);
+      }
+    }
+  });
+
+  it("scatters debris deterministically on open ground, clear of the bases", () => {
+    const map = getMap("ashfall_basin");
+    const a = setupFor().features ?? [];
+    expect(a).toEqual(setupFor().features);
+    expect(a.length).toBeGreaterThan(20);
+    const size = terrainWidth(setupFor().terrain);
+    for (const f of a) {
+      expect(RULESET.features[f.type]).toBeDefined();
+      for (const s of map.startPositions) {
+        expect(Math.hypot(f.x - s.x * size, f.z - s.z * size)).toBeGreaterThan(map.plateauRadius);
+      }
+    }
   });
 
   it("rejects slots without a start position and unknown factions", () => {

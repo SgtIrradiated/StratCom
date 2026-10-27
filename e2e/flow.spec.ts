@@ -6,6 +6,9 @@ import { expect, test } from "@playwright/test";
 test("menu → setup → faction select → match → surrender → results → menu", async ({
   page,
 }, info) => {
+  // A full match load through software WebGL; with the other specs running in parallel it
+  // can take over 20 s, too close to the 30 s default.
+  test.setTimeout(60_000);
   const errors: string[] = [];
   page.on("pageerror", (err) => errors.push(err.message));
   page.on("console", (msg) => {

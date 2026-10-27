@@ -8,16 +8,23 @@ import {
   MeshStandardMaterial,
   type PerspectiveCamera,
 } from "three";
-import { sampleHeight, type SnapshotBuffers, type Terrain } from "@stratcom/sim";
+import { EntityKind, sampleHeight, type SnapshotBuffers, type Terrain } from "@stratcom/sim";
 import { IconLayer } from "./IconLayer";
 import { SelectionRings } from "./SelectionRings";
-import type { UnitVisual } from "./types";
+import type { FeatureVisual, UnitVisual } from "./types";
+
+/** Unfinished units are drawn this grey, blending to the owner's colour as they complete. */
+const FRAME_GREY = 0.32;
+/** Height of a site at 0 % progress, as a fraction of the finished height. */
+const FRAME_MIN_HEIGHT = 0.12;
 
 /**
- * Draws every unit. Near the ground it uses one `InstancedMesh` per unit type (draw calls
- * scale with types, not units, docs/PLAN.md §4.3); zoomed out, the {@link IconLayer} takes
- * over with a cross-fade. Selected units get a ring. Per-instance data is written straight
- * into the attribute arrays each frame.
+ * Draws every unit and feature. Near the ground it uses one `InstancedMesh` per unit type
+ * and per feature type (draw calls scale with types, not units, docs/PLAN.md §4.3); zoomed
+ * out, the {@link IconLayer} takes over with a cross-fade (features get no icon). Selected
+ * units get a ring. Unfinished units rise from a low grey frame as they are built; features
+ * shrink as they are reclaimed. Per-instance data is written straight into the attribute
+ * arrays each frame.
  */
 export class UnitLayer {
   /** Add this to the scene. */
@@ -33,9 +40,11 @@ export class UnitLayer {
   private readonly icons: IconLayer;
   private readonly rings: SelectionRings;
   private readonly playerRgb: Float32Array;
+  private readonly featureRgb: Float32Array;
 
   constructor(
     private readonly visuals: readonly UnitVisual[],
+    private readonly featureVisuals: readonly FeatureVisual[],
     playerColors: readonly string[],
     maxUnits: number,
     private readonly terrain: Terrain,
@@ -47,10 +56,17 @@ export class UnitLayer {
       c.set(hex);
       this.playerRgb.set([c.r, c.g, c.b], slot * 3);
     });
+    this.featureRgb = new Float32Array(featureVisuals.length * 3);
+    featureVisuals.forEach((f, i) => {
+      c.set(f.color);
+      this.featureRgb.set([c.r, c.g, c.b], i * 3);
+    });
 
-    this.meshes = visuals.map((v) => {
-      const geometry = new BoxGeometry(...v.size);
-      geometry.translate(0, v.size[1] / 2, 0);
+    // Unit types first, then feature types: mesh index = type, or units + feature type.
+    const sizes = [...visuals.map((v) => v.size), ...featureVisuals.map((f) => f.size)];
+    this.meshes = sizes.map((size) => {
+      const geometry = new BoxGeometry(...size);
+      geometry.translate(0, size[1] / 2, 0);
       this.geometries.push(geometry);
       const mesh = new InstancedMesh(geometry, this.material, maxUnits);
       mesh.instanceMatrix.setUsage(DynamicDrawUsage);
@@ -85,31 +101,43 @@ export class UnitLayer {
     const matrices = this.meshes.map((m) => m.instanceMatrix.array as Float32Array);
     const drawModels = blend < 1;
     const drawIcons = blend > 0;
-    const { count, ids, types, owners, prevX, prevZ, x, z, heading } = snapshot;
+    const { count, ids, kinds, types, owners, prevX, prevZ, x, z, heading, progress } = snapshot;
     this.icons.begin(camera);
     this.rings.begin();
 
     for (let i = 0; i < count; i++) {
       const t = types[i] ?? 0;
-      const visual = this.visuals[t];
-      if (!visual) continue;
+      const isFeature = kinds[i] === EntityKind.feature;
+      const visual = isFeature ? undefined : this.visuals[t];
+      if (!visual && !(isFeature && this.featureVisuals[t])) continue;
+      const mesh = isFeature ? this.visuals.length + t : t;
       const px = prevX[i] ?? 0;
       const pz = prevZ[i] ?? 0;
       const ux = px + ((x[i] ?? 0) - px) * alpha;
       const uz = pz + ((z[i] ?? 0) - pz) * alpha;
       const uy = sampleHeight(this.terrain, ux, uz);
-      const rgb = (owners[i] ?? 0) * 3;
-      const r = this.playerRgb[rgb] ?? 1;
-      const g = this.playerRgb[rgb + 1] ?? 1;
-      const b = this.playerRgb[rgb + 2] ?? 1;
+      const done = progress[i] ?? 1;
+      const palette = isFeature ? this.featureRgb : this.playerRgb;
+      const rgb = (isFeature ? t : (owners[i] ?? 0)) * 3;
+      // Unfinished units blend from grey to their owner's colour.
+      const tint = isFeature || done >= 1 ? 1 : done * 0.6;
+      const r = FRAME_GREY + ((palette[rgb] ?? 1) - FRAME_GREY) * tint;
+      const g = FRAME_GREY + ((palette[rgb + 1] ?? 1) - FRAME_GREY) * tint;
+      const b = FRAME_GREY + ((palette[rgb + 2] ?? 1) - FRAME_GREY) * tint;
+      // Sites rise as they are built; debris flattens as it is reclaimed.
+      const sy = isFeature
+        ? 0.35 + 0.65 * done
+        : done >= 1
+          ? 1
+          : FRAME_MIN_HEIGHT + (1 - FRAME_MIN_HEIGHT) * done;
       const isSelected = selected.has(ids[i] ?? 0);
 
       if (drawModels) {
-        const m = matrices[t];
-        const col = this.colors[t];
+        const m = matrices[mesh];
+        const col = this.colors[mesh];
         if (m && col) {
-          const n = counts[t] ?? 0;
-          counts[t] = n + 1;
+          const n = counts[mesh] ?? 0;
+          counts[mesh] = n + 1;
           const h = heading[i] ?? 0;
           const cos = Math.cos(h);
           const sin = Math.sin(h);
@@ -120,7 +148,7 @@ export class UnitLayer {
           m[o + 2] = -sin;
           m[o + 3] = 0;
           m[o + 4] = 0;
-          m[o + 5] = 1;
+          m[o + 5] = sy;
           m[o + 6] = 0;
           m[o + 7] = 0;
           m[o + 8] = sin;
@@ -136,9 +164,9 @@ export class UnitLayer {
           col[c + 1] = g;
           col[c + 2] = b;
         }
-        if (isSelected) this.rings.add(ux, uy, uz, visual.radius * 2);
+        if (isSelected && visual) this.rings.add(ux, uy, uz, visual.radius * 2);
       }
-      if (drawIcons) this.icons.add(t, ux, uy, uz, r, g, b, isSelected);
+      if (drawIcons && !isFeature) this.icons.add(t, ux, uy, uz, r, g, b, isSelected);
     }
 
     this.meshes.forEach((mesh, t) => {

@@ -22,7 +22,7 @@ const fieldFor = (g: NavGrid, goal: number): FlowField => ({
   goalCell: goal,
   goalX: (goal % g.cols) + 0.5,
   goalZ: Math.floor(goal / g.cols) + 0.5,
-  groupSize: 1,
+  version: 0,
   cost: computeFlowCosts(g, goal),
 });
 

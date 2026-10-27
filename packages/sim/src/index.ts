@@ -6,8 +6,38 @@
  * `writeSnapshot()`. Deterministic math lives in `@stratcom/sim/math`.
  */
 export * from "./math/index";
-export type { PlayerCommand, Vec2 } from "./commands";
-export { MAX_ENTITIES, World, entityGeneration, entityIndex, type EntityId } from "./ecs/index";
+export type { Facing, PlayerCommand, Vec2 } from "./commands";
+export {
+  ECON_STRIDE,
+  Econ,
+  MAX_PLAYERS,
+  readEconomy,
+  stallFactor,
+  type PlayerEconomy,
+} from "./economy";
+export {
+  EntityKind,
+  MAX_ENTITIES,
+  NEUTRAL_OWNER,
+  World,
+  entityGeneration,
+  entityIndex,
+  type EntityId,
+} from "./ecs/index";
+export {
+  BUILD_MAX_SLOPE,
+  DEPOSIT_SNAP_RADIUS,
+  distanceToFootprint,
+  facingHeading,
+  footprintAt,
+  headingFacing,
+  placementProblem,
+  snapSite,
+  toFacing,
+  type Footprint,
+  type PlacementProblem,
+  type PlacementStats,
+} from "./placement";
 export {
   TEST_MOVEMENT_CLASSES,
   TEST_RULESET,
@@ -38,11 +68,20 @@ export {
   type Terrain,
   type TerrainParams,
 } from "./terrain";
-export { createSkirmishSetup, generateMapTerrain, type SkirmishOptions } from "./skirmish";
+export {
+  createSkirmishSetup,
+  generateMapTerrain,
+  mapDeposits,
+  mapFeatures,
+  type SkirmishOptions,
+} from "./skirmish";
 export {
   Simulation,
   TICK_MS,
   TICK_RATE,
+  setupCapacity,
+  type FeatureTypeStats,
+  type InitialFeature,
   type InitialUnit,
   type MovementClassDef,
   type MatchSetup,
@@ -51,4 +90,10 @@ export {
   type UnitTypeStats,
 } from "./simulation";
 export { DET_TICKS, SKIRMISH_DET_TICKS, runDetScenario, runSkirmishDetScenario } from "./detcheck";
-export { createSnapshotBuffers, snapshotTransferList, type SnapshotBuffers } from "./snapshot";
+export {
+  createSnapshotBuffers,
+  snapshotEconomy,
+  snapshotTransferList,
+  type ProductionInfo,
+  type SnapshotBuffers,
+} from "./snapshot";

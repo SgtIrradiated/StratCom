@@ -1,17 +1,32 @@
 import type { PlayerCommand } from "./commands";
 import { Prng } from "./math/prng";
 import { buildNavGrid, cellAt } from "./navigation";
-import type { MatchSetup, SimRuleset } from "./simulation";
+import type { MatchSetup, SimRuleset, UnitTypeStats } from "./simulation";
 import { generateTerrain, terrainDepth, terrainWidth } from "./terrain";
 
 /** Ground units cross slopes up to 0.6 (about 31°). */
 export const TEST_MOVEMENT_CLASSES = [{ maxSlope: 0.6 }] as const;
 
+/** A mobile test unit that cannot build and produces nothing. */
+function testUnit(speed: number, turnRate: number, radius: number): UnitTypeStats {
+  return {
+    mobile: true,
+    movementClass: 0,
+    radius,
+    speed,
+    turnRate,
+    cost: { salvage: 0, power: 0, buildTime: 1 },
+    footprint: { x: 0, z: 0 },
+    placement: "ground",
+    builds: [],
+    buildRate: 0,
+    buildRange: 0,
+    economy: { salvagePerSec: 0, powerPerSec: 0, storageSalvage: 0, storagePower: 0 },
+  };
+}
+
 /** Placeholder unit types: a quick scout and a slow heavy. */
-export const TEST_UNIT_TYPES = [
-  { mobile: true, speed: 9, turnRate: 4, radius: 2, movementClass: 0 },
-  { mobile: true, speed: 5, turnRate: 2, radius: 3.5, movementClass: 0 },
-] as const;
+export const TEST_UNIT_TYPES: readonly UnitTypeStats[] = [testUnit(9, 4, 2), testUnit(5, 2, 3.5)];
 
 /**
  * A minimal two-type ruleset for tests, benchmarks and the determinism check. It stays
@@ -20,6 +35,7 @@ export const TEST_UNIT_TYPES = [
 export const TEST_RULESET: SimRuleset = {
   movementClasses: TEST_MOVEMENT_CLASSES,
   units: TEST_UNIT_TYPES,
+  features: [],
 };
 
 /**

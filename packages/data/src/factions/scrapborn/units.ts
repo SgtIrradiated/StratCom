@@ -68,7 +68,9 @@ export const scrapbornUnits = [
     movement: { class: "tracked", speed: 5, turnRate: 1.8 },
     weapons: ["scr_rivet_cannon", "scr_fortress_torch"],
     builds: ECONOMY_STRUCTURES,
-    economy: { salvagePerSec: 1, powerPerSec: 18, storageSalvage: 600, storagePower: 4000 },
+    buildRate: 2,
+    buildRange: 14,
+    economy: { salvagePerSec: 1, powerPerSec: 18, storageSalvage: 1000, storagePower: 4000 },
     visual: { size: [9, 6, 11], icon: "star" },
   },
   {
@@ -83,6 +85,7 @@ export const scrapbornUnits = [
     vision: 300,
     movement: { class: "wheeled", speed: 8, turnRate: 3.5 },
     builds: ECONOMY_STRUCTURES,
+    buildRate: 1,
     visual: { size: [3.5, 2.5, 5], icon: "circle" },
   },
   {
@@ -96,6 +99,7 @@ export const scrapbornUnits = [
     radius: 6,
     vision: 200,
     footprint: { x: 2, z: 2 },
+    placement: "deposit",
     economy: { salvagePerSec: 2 },
     visual: { size: [10, 8, 10], icon: "square" },
   },
@@ -125,6 +129,7 @@ export const scrapbornUnits = [
     vision: 300,
     footprint: { x: 4, z: 4 },
     builds: ["scr_rig", "scr_buggy", "scr_crawler", "scr_lobber"],
+    buildRate: 1,
     visual: { size: [24, 9, 22], icon: "hexagon" },
   },
   {

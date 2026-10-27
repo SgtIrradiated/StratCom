@@ -1,5 +1,14 @@
-import type { PlayerCommand, SnapshotBuffers } from "@stratcom/sim";
-import type { GameRenderer } from "../render/types";
+import {
+  facingHeading,
+  type Facing,
+  type PlayerCommand,
+  type SimRuleset,
+  type SnapshotBuffers,
+  type Terrain,
+  type Vec2,
+} from "@stratcom/sim";
+import type { GameRenderer, UnitVisual } from "../render/types";
+import { contextCommands, previewPlacement, selectionRoles } from "./orders";
 import type { Selection } from "./selection";
 import { nearestUnit, unitsInRect } from "./selection";
 
@@ -10,6 +19,11 @@ export interface InputHost {
   readonly selection: Selection;
   /** Slot of the local player; only that player's units can be selected or commanded. */
   readonly localSlot: number;
+  readonly ruleset: SimRuleset;
+  readonly terrain: Terrain;
+  readonly deposits: readonly Vec2[];
+  /** Placeholder looks, for the placement ghost. */
+  readonly unitVisuals: readonly UnitVisual[];
   /** Latest snapshot and its interpolation factor, if one has arrived. */
   current(): { snapshot: SnapshotBuffers; alpha: number } | undefined;
   /** Sends a command to the simulation. */
@@ -28,13 +42,23 @@ const GROUP_DOUBLE_TAP_MS = 400;
  * Never touches simulation state: the only output is {@link InputHost.command}.
  *
  * Mouse: left click / drag-box select (Shift adds), double-click selects every visible unit
- * of the same type, right click moves, middle-drag rotates, wheel zooms to the cursor, and
- * the screen edges pan. Keyboard: WASD / arrows pan, Q / E rotate, Ctrl+1–9 stores a control
- * group, 1–9 recalls it (twice to centre the camera), X stops.
+ * of the same type, right click gives the context order (move, reclaim debris, assist your
+ * own construction; factories set a rally point), Shift+right click queues it, middle-drag
+ * rotates, wheel zooms to the cursor, and the screen edges pan. Keyboard: WASD / arrows
+ * pan, Q / E rotate, Ctrl+1–9 stores a control group, 1–9 recalls it (twice to centre the
+ * camera), X stops.
+ *
+ * Placement mode ({@link beginPlacement}) shows a ghost under the cursor: left click places
+ * (Shift keeps placing, queued), R rotates, right click or Esc cancels.
  */
 export class InputController {
   /** While false, every input except releasing held buttons is ignored (pause menu). */
   enabled = true;
+  /** Called when placement mode starts or ends. */
+  onPlacementChange: ((type: number | undefined) => void) | undefined;
+  /** Whether the ghost shows a buildable site; undefined when no ghost is shown. */
+  ghostValid: boolean | undefined;
+  private placing: { type: number; facing: Facing } | undefined;
   private readonly keys = new Set<string>();
   private readonly box = document.createElement("div");
   private screenBuf = new Float32Array(0);
@@ -108,12 +132,106 @@ export class InputController {
     if (right !== 0 || forward !== 0) cam.pan(right * speed, forward * speed);
     if (this.keys.has("KeyQ")) cam.rotate(-ROTATE_RADIANS_PER_SECOND * dtSec);
     if (this.keys.has("KeyE")) cam.rotate(ROTATE_RADIANS_PER_SECOND * dtSec);
+    this.updateGhost();
+  }
+
+  /** Structure type being placed, if in placement mode. */
+  get placingType(): number | undefined {
+    return this.placing?.type;
+  }
+
+  /** Enters placement mode for structure `type`, for the selected builders. */
+  beginPlacement(type: number): void {
+    this.placing = { type, facing: this.placing?.facing ?? 0 };
+    this.onPlacementChange?.(type);
+  }
+
+  /** Leaves placement mode. */
+  cancelPlacement(): void {
+    if (!this.placing) return;
+    this.placing = undefined;
+    this.host.renderer.setGhost(undefined);
+    this.onPlacementChange?.(undefined);
   }
 
   /** Removes every listener and DOM node this controller added. */
   dispose(): void {
     for (const d of this.disposers) d();
     this.box.remove();
+  }
+
+  /** The site under the cursor for the structure being placed. */
+  private placementAt(): { at: Vec2; valid: boolean } | undefined {
+    const placing = this.placing;
+    const cur = this.host.current();
+    const m = this.mouse;
+    if (!placing || !cur || !m) return undefined;
+    const r = this.host.canvas.getBoundingClientRect();
+    const p = this.ndc({ x: m.x - r.left, y: m.y - r.top });
+    const ground = this.host.renderer.groundAt(p.x, p.y);
+    if (!ground) return undefined;
+    const preview = previewPlacement(
+      this.host.ruleset,
+      this.host.terrain,
+      this.host.deposits,
+      cur.snapshot,
+      placing.type,
+      placing.facing,
+      ground.x,
+      ground.z,
+    );
+    if (!preview) return undefined;
+    const cs = this.host.terrain.cellSize;
+    const size = this.host.unitVisuals[placing.type]?.size ?? [cs, cs, cs];
+    this.host.renderer.setGhost({
+      x: preview.site.x,
+      z: preview.site.z,
+      width: preview.site.cols * cs,
+      depth: preview.site.rows * cs,
+      size,
+      heading: facingHeading(placing.facing),
+      valid: preview.problem === undefined,
+    });
+    return { at: { x: preview.site.x, z: preview.site.z }, valid: preview.problem === undefined };
+  }
+
+  private updateGhost(): void {
+    const site = this.placing && this.enabled ? this.placementAt() : undefined;
+    this.ghostValid = site?.valid;
+    if (this.placing && !site) this.host.renderer.setGhost(undefined);
+  }
+
+  private place(queue: boolean): void {
+    const placing = this.placing;
+    const site = this.placementAt();
+    if (!placing || !site?.valid) return;
+    const cur = this.host.current();
+    if (!cur) return;
+    const { builders } = selectionRoles({
+      ruleset: this.host.ruleset,
+      localSlot: this.host.localSlot,
+      snapshot: cur.snapshot,
+      selected: this.host.selection.ids,
+    });
+    const able = builders.filter((id) => {
+      const i = cur.snapshot.ids.indexOf(id);
+      const st = this.host.ruleset.units[cur.snapshot.types[i] ?? 0];
+      return st?.builds.includes(placing.type) === true;
+    });
+    if (able.length === 0) {
+      this.cancelPlacement();
+      return;
+    }
+    this.host.command({
+      t: "build",
+      slot: this.host.localSlot,
+      units: able,
+      unitType: placing.type,
+      at: site.at,
+      facing: placing.facing,
+      queue,
+    });
+    if (!queue) this.cancelPlacement();
   }
 
   private listen<K extends keyof HTMLElementEventMap>(
@@ -156,23 +274,41 @@ export class InputController {
   private onPointerDown(e: PointerEvent): void {
     if (!this.enabled) return;
     this.mouse = { x: e.clientX, y: e.clientY };
+    if (this.placing && e.button !== 1) {
+      if (e.button === 0) this.place(e.shiftKey);
+      else this.cancelPlacement();
+      return;
+    }
     if (e.button === 0) {
       this.dragStart = this.local(e);
     } else if (e.button === 1) {
       this.rotating = true;
       e.preventDefault();
     } else if (e.button === 2) {
-      const p = this.ndc(this.local(e));
-      const ground = this.host.renderer.groundAt(p.x, p.y);
-      if (ground && this.host.selection.ids.size > 0) {
-        this.host.command({
-          t: "move",
-          slot: this.host.localSlot,
-          units: [...this.host.selection.ids],
-          to: ground,
-        });
-      }
+      this.contextOrder(e);
     }
+  }
+
+  private contextOrder(e: PointerEvent): void {
+    if (this.host.selection.ids.size === 0) return;
+    const proj = this.project();
+    if (!proj) return;
+    const at = this.local(e);
+    const p = this.ndc(at);
+    const ground = this.host.renderer.groundAt(p.x, p.y);
+    const hovered = nearestUnit(proj.screen, proj.snapshot.count, at.x, at.y, CLICK_RADIUS_PX);
+    const commands = contextCommands(
+      {
+        ruleset: this.host.ruleset,
+        localSlot: this.host.localSlot,
+        snapshot: proj.snapshot,
+        selected: this.host.selection.ids,
+      },
+      hovered,
+      ground,
+      e.shiftKey,
+    );
+    for (const cmd of commands) this.host.command(cmd);
   }
 
   private onPointerMove(e: PointerEvent): void {
@@ -257,12 +393,26 @@ export class InputController {
   private onKeyDown(e: KeyboardEvent): void {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
     if (!this.enabled) return;
+    if (this.placing && !e.repeat) {
+      if (e.code === "Escape") {
+        // Esc leaves placement mode instead of opening the pause menu.
+        this.cancelPlacement();
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        return;
+      }
+      if (e.code === "KeyR") {
+        this.placing = { ...this.placing, facing: ((this.placing.facing + 1) % 4) as Facing };
+        return;
+      }
+    }
     this.keys.add(e.code);
     const digit = /^Digit([1-9])$/.exec(e.code)?.[1];
     if (digit !== undefined) {
       this.groupKey(Number(digit), e.ctrlKey || e.metaKey);
       e.preventDefault();
     } else if (e.code === "KeyX" && !e.repeat && this.host.selection.ids.size > 0) {
+      this.cancelPlacement();
       this.host.command({
         t: "stop",
         slot: this.host.localSlot,

@@ -8,6 +8,8 @@ import {
   WebGLRenderer,
 } from "three";
 import { terrainWidth, type SnapshotBuffers } from "@stratcom/sim";
+import { DepositLayer } from "./DepositLayer";
+import { GhostLayer } from "./GhostLayer";
 import { RtsCamera } from "./RtsCamera";
 import { TerrainLayer } from "./TerrainLayer";
 import { UnitLayer } from "./UnitLayer";
@@ -26,8 +28,9 @@ const STRATEGIC_START = 900;
 const STRATEGIC_END = 1300;
 
 /**
- * The layered renderer from docs/PLAN.md §4.3: {@link TerrainLayer}, {@link UnitLayer}
- * (with its icon and selection sub-layers) and the {@link RtsCamera}. FxLayer arrives later.
+ * The layered renderer from docs/PLAN.md §4.3: {@link TerrainLayer}, {@link DepositLayer},
+ * {@link UnitLayer} (with its icon and selection sub-layers), the placement
+ * {@link GhostLayer} and the {@link RtsCamera}. FxLayer arrives later.
  */
 export function createSceneRenderer(
   canvas: HTMLCanvasElement,
@@ -53,14 +56,19 @@ export function createSceneRenderer(
 
   const terrain = new TerrainLayer(options.terrain);
   scene.add(terrain.group);
+  const deposits = new DepositLayer(options.deposits, options.terrain);
+  scene.add(deposits.group);
   const units = new UnitLayer(
     options.unitVisuals,
+    options.featureVisuals,
     options.playerColors,
     options.maxUnits,
     options.terrain,
     options.selectionColor,
   );
   scene.add(units.group);
+  const ghost = new GhostLayer(options.terrain);
+  scene.add(ghost.group);
 
   let width = 1;
   let height = 1;
@@ -83,6 +91,9 @@ export function createSceneRenderer(
     projectUnits(snapshot, alpha, out) {
       units.project(snapshot, alpha, rts.camera, width, height, out);
     },
+    setGhost(g) {
+      ghost.set(g);
+    },
     groundAt: (x, y) => rts.groundAt(x, y),
     render() {
       // The sun follows the camera target so shadows-to-be stay coherent; direction is fixed.
@@ -100,6 +111,8 @@ export function createSceneRenderer(
     },
     dispose() {
       units.dispose();
+      ghost.dispose();
+      deposits.dispose();
       terrain.dispose();
       renderer.dispose();
       // Free the GPU context now rather than whenever the browser garbage-collects it; each

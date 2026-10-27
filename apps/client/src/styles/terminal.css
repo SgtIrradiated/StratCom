@@ -564,6 +564,8 @@ select {
 .hud-resources {
   display: flex;
   gap: 1rem;
+  align-items: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .res.salvage::before {
@@ -631,15 +633,93 @@ select {
 }
 
 .build-option {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  align-items: flex-start;
   min-height: 2.6rem;
-  padding: 0.25rem;
+  padding: 0.25rem 0.4rem;
   font: inherit;
   font-size: 0.8rem;
   color: var(--phosphor);
+  text-align: left;
   background: var(--faint);
-  border: 1px dashed var(--dim);
-  cursor: not-allowed;
-  opacity: 0.65;
+  border: 1px solid var(--dim);
+  cursor: pointer;
+}
+
+.build-option:hover,
+.build-option:focus-visible {
+  border-color: var(--phosphor);
+  outline: none;
+}
+
+.build-option.active {
+  color: #000;
+  text-shadow: none;
+  background: var(--phosphor);
+}
+
+.build-cost {
+  font-size: 0.72rem;
+  opacity: 0.8;
+}
+
+.build-queued {
+  position: absolute;
+  top: 0.15rem;
+  right: 0.3rem;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  color: var(--accent);
+}
+
+.placing-hint {
+  margin-bottom: 0.3rem;
+  color: var(--accent);
+  font-size: 0.8rem;
+}
+
+.hud-resources .income {
+  color: var(--accent);
+}
+
+.hud-resources .spending {
+  color: var(--dim);
+}
+
+.stall {
+  padding: 0 0.4rem;
+  color: #000;
+  text-shadow: none;
+  background: #ff5a3c;
+  animation: blink 1s steps(2, start) infinite;
+}
+
+@keyframes blink {
+  to {
+    visibility: hidden;
+  }
+}
+
+.progress {
+  margin: 0.35rem 0;
+}
+
+.progress-pct {
+  float: right;
+  color: var(--accent);
+}
+
+.progress-track {
+  height: 0.45rem;
+  border: 1px solid var(--dim);
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--phosphor);
 }
 
 .hud-hash {
@@ -673,7 +753,8 @@ select {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cursor {
+  .cursor,
+  .stall {
     animation: none;
   }
 

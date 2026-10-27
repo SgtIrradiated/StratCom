@@ -95,7 +95,8 @@ export function nearestPassable(g: NavGrid, cell: number): number {
 /**
  * A distance field toward one goal, shared by every unit that received the same move
  * command. Units descend the field. It is a pure function of `(grid, goalCell)`, so only
- * those two need hashing.
+ * the goal needs hashing. When structures change the grid, the simulation recomputes the
+ * costs (and moves the goal off a cell that became blocked).
  */
 export interface FlowField {
   movementClass: number;
@@ -103,10 +104,10 @@ export interface FlowField {
   /** Exact requested target in metres (inside or near the goal cell). */
   goalX: number;
   goalZ: number;
-  /** Number of units sharing the order; sets how widely they spread on arrival. */
-  groupSize: number;
   /** Path cost to the goal per cell, or {@link UNREACHABLE}. */
   cost: Int32Array;
+  /** Version of the navigation grid the costs were computed for. */
+  version: number;
 }
 
 /**

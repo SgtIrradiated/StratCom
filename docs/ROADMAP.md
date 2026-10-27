@@ -1,6 +1,6 @@
 # StratCom Roadmap
 
-_Last updated: 2026-10-27, M3 implemented (M1/M2 exit criteria partly pending)._
+_Last updated: 2026-10-27, M4 implemented (M1/M2 exit criteria partly pending)._
 
 This roadmap reflects the decisions from [PLAN.md §12](PLAN.md#12-decisions):
 
@@ -130,13 +130,43 @@ Deviations and notes:
   out of the menus (ADR-0004) and avoid a second WebGL context.
 - Fonts: VT323 (display) and Share Tech Mono (body), both SIL OFL 1.1, from `@fontsource`.
 
-## M4: Economy and construction
+## ✅ M4: Economy and construction (done)
 
-- Salvage and Power flow economy with storage and proportional stalling
-- Extractors on deposits, generators, wreck/debris **reclaim**
-- Build commands with a placement ghost, footprints, build queues, factories, assist
+**Goal:** build a working base from your commander.
 
-**Exit:** build a working base from your commander. Stalls slow everything proportionally.
+| Delivered                                                                                                                                | Where                                                     |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Flow economy: income, storage, pay-as-you-build, one proportional stall factor per player                                                | `packages/sim/src/economy.ts`, `simulation.ts`, ADR-0010  |
+| Order queues per unit (`queue: true` = Shift); commands `build`, `reclaim`, `assist`, `produce`, `rally`                                 | `packages/sim/src/commands.ts`                            |
+| Construction: builders walk into range, place the site, build it; several builders share a site; assist                                  | `packages/sim/src/simulation.ts`                          |
+| Placement rules shared by sim and client: grid snap, facing, slope, occupancy, deposits                                                  | `packages/sim/src/placement.ts`                           |
+| Structures block every navigation grid; flow fields recompute lazily                                                                     | `packages/sim/src/simulation.ts`                          |
+| Factories with production queues (add, remove, stop) and rally points                                                                    | `packages/sim/src/simulation.ts`                          |
+| Deposits (an arc behind each start, plus field deposits on flattened pads) and seeded debris fields                                      | `packages/sim/src/skirmish.ts`, `packages/data/src/maps`  |
+| Neutral features and reclaim, with the faction `reclaimMultiplier` (Scrapborn ×1.5); dismantling own structures                          | `packages/data/src/features.ts`, sim                      |
+| Data: `buildRate`, `buildRange`, `placement`, `FeatureDef`, map `deposits` / `debris` / `startDeposits`, compiler checks for builders    | `packages/data`                                           |
+| Client: placement ghost (green/red, R rotates, Shift keeps placing), context right click (move, reclaim, assist, rally), deposit markers | `apps/client/src/input`, `src/render`                     |
+| HUD: live salvage/power with income, spending and a STALL warning; working build panel; construction and factory queue progress          | `apps/client/src/screens/InGame.tsx`                      |
+| Determinism: real-content scenario now builds bases and produces units in all 4 slots; pinned hashes repinned (movement unchanged)       | `packages/sim/src/detcheck.ts`, `e2e/determinism.spec.ts` |
+
+**Exit:** ✅ build a working base from your commander, and stalls slow everything
+proportionally. Covered by `e2e/build.spec.ts` (select the commander, place an Atomic Pile
+with the ghost, watch it rise and power income go from +20 to +45),
+`construction.test.ts` (placement, shared sites, assist, queues, pathing around structures,
+the stall factor, storage caps, reclaim, dismantling, factories) and the skirmish
+determinism scenario (every player ends with extractors, a generator and a factory).
+
+Deviations and notes:
+
+- **Factories don't spawn half-built units.** They track progress internally and roll the
+  unit out when done (ADR-0010).
+- **No build priorities.** Every job of a stalled player slows by the same factor.
+- **Dismantling has no UI binding yet.** The `reclaim` command accepts your own structures; a
+  hotkey can follow with the M5 command card.
+- **No repair**: health arrives with combat in M5, and wrecks with it. Map debris is the only
+  reclaimable for now.
+- The starting force from M3 stays until the AI (M6) has to build its own.
+- Sim cost at 2,000 units went from about 1.15 ms to 1.3 ms per tick ([performance.md](performance.md)).
 
 ## M5: Combat and victory
 

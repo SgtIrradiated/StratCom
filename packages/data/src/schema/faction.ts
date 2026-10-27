@@ -61,6 +61,11 @@ export const FactionDef = z.object({
     salvage: z.number().min(0),
     power: z.number().min(0),
   }),
+  /**
+   * Multiplier on salvage recovered by reclaiming features and wrecks. The Scrapborn
+   * economy twist (docs/PLAN.md §2) lives here, as data.
+   */
+  reclaimMultiplier: z.number().positive().max(4).default(1),
   theme: FactionTheme,
 });
 /** A validated faction (defaults applied). */

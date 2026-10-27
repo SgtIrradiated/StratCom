@@ -3,7 +3,7 @@ import { hashHex } from "@stratcom/shared";
 import { createSkirmishSetup } from "@stratcom/sim";
 import { GameSession } from "./GameSession";
 import { localSlot, toPlayers, type SkirmishConfig } from "./skirmishConfig";
-import { visualsFromRuleset } from "./visuals";
+import { featureVisualsFromRuleset, visualsFromRuleset } from "./visuals";
 
 /** Reports one finished loading step, e.g. `("Terrain", "2,048 m, 4 start positions")`. */
 export type LoadProgress = (label: string, detail: string) => void;
@@ -56,13 +56,17 @@ export async function loadMatch(
     players: toPlayers(config),
   });
   const metres = map.cells * map.cellSize;
-  progress("Terrain", `${map.name}, ${metres.toLocaleString("en")} m square`);
+  progress(
+    "Terrain",
+    `${map.name}, ${metres.toLocaleString("en")} m square · ${setup.deposits?.length ?? 0} deposits, ${setup.features?.length ?? 0} debris`,
+  );
   await nextFrame();
   check();
 
   const session = new GameSession({
     setup,
     unitVisuals: visualsFromRuleset(RULESET),
+    featureVisuals: featureVisualsFromRuleset(RULESET),
     localSlot: me,
     selectionColor: faction.theme.phosphor,
     focusType: compiled.commanderUnit,
