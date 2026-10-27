@@ -555,6 +555,11 @@ select {
   color: var(--dim);
 }
 
+.hud-hotseat {
+  color: var(--accent);
+  letter-spacing: 0.08em;
+}
+
 .hud-clock {
   margin-left: auto;
   font-family: var(--font-display);

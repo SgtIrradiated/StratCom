@@ -17,7 +17,10 @@ export interface InputHost {
   readonly canvas: HTMLCanvasElement;
   readonly renderer: GameRenderer;
   readonly selection: Selection;
-  /** Slot of the local player; only that player's units can be selected or commanded. */
+  /**
+   * Slot of the local player; only that player's units can be selected or commanded. Read on
+   * every use, so hotseat mode can change it.
+   */
   readonly localSlot: number;
   /** Team per player slot (indexed by slot), to tell enemies from allies. */
   readonly teams: readonly (number | undefined)[];

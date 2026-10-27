@@ -71,6 +71,8 @@ export class GameSession {
   /** {@link current} as the local team may see it. */
   private seen: ViewSnapshot | undefined;
   private readonly fog: FogView;
+  private readonly teamOf: Uint8Array;
+  private activeSlot: number;
   private receivedAt = 0;
   private frame = 0;
   private isPaused = false;
@@ -93,6 +95,8 @@ export class GameSession {
     });
     this.focusStart();
     const teams = denseTeams(setup.players);
+    this.teamOf = teams.teamOf;
+    this.activeSlot = options.localSlot;
     this.fog = new FogView(
       setupCapacity(setup),
       teams.teamOf,
@@ -119,11 +123,15 @@ export class GameSession {
       options.scripted ?? false,
     );
 
+    const activeSlot = (): number => this.activeSlot;
     this.input = new InputController({
       canvas: this.canvas,
       renderer: this.renderer,
       selection: this.selection,
-      localSlot: options.localSlot,
+      // A getter, so hotseat switches reach the input layer.
+      get localSlot() {
+        return activeSlot();
+      },
       teams: teamsBySlot(setup),
       ruleset: setup.ruleset,
       terrain: setup.terrain,
@@ -156,7 +164,8 @@ export class GameSession {
       if (snap) {
         this.renderer.setUnits(snap, this.alpha(), this.selection.ids);
         root["selected"] = String(this.selection.ids.size);
-        root["units"] = String(countOwned(snap, options.localSlot));
+        root["units"] = String(countOwned(snap, this.activeSlot));
+        root["slot"] = String(this.activeSlot);
         const ghost = this.input.ghostValid;
         if (ghost === undefined) delete root["ghost"];
         else root["ghost"] = ghost ? "valid" : "invalid";
@@ -173,6 +182,27 @@ export class GameSession {
   /** The latest snapshot, if one has arrived. Read-only: it is handed back to the worker. */
   get snapshot(): SnapshotBuffers | undefined {
     return this.current;
+  }
+
+  /** The player slot this machine commands now (changes only in hotseat mode). */
+  get localSlot(): number {
+    return this.activeSlot;
+  }
+
+  /**
+   * Hands control to player `slot` (hotseat debugging): the selection is cleared, and the
+   * fog of war, if on, switches to that player's team.
+   */
+  setLocalSlot(slot: number): void {
+    if (slot === this.activeSlot) return;
+    this.activeSlot = slot;
+    this.input.cancelPlacement();
+    this.selection.set([]);
+    if (this.fog.team !== undefined) this.fog.setTeam(this.teamOf[slot]);
+    if (this.current) {
+      this.seen = this.fog.update(this.current);
+      this.shadeFog(this.current);
+    }
   }
 
   /** Dense team index whose view is shown (fog of war), or undefined when fog is off. */
@@ -230,7 +260,7 @@ export class GameSession {
   /** Centres the camera on the local player's first unit of `type`. Returns false if none. */
   focusType(type: number): boolean {
     const snap = this.current;
-    const i = snap ? findUnit(snap, this.options.localSlot, type) : -1;
+    const i = snap ? findUnit(snap, this.activeSlot, type) : -1;
     if (!snap || i < 0) return false;
     this.renderer.camera.focus(snap.x[i] ?? 0, snap.z[i] ?? 0);
     return true;
@@ -294,6 +324,7 @@ export class GameSession {
     delete root["placing"];
     delete root["ghost"];
     delete root["fog"];
+    delete root["slot"];
   }
 
   /** Darkens the ground the view team has not explored or does not see now. */

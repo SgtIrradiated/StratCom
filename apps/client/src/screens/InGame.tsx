@@ -15,7 +15,7 @@ import {
   summarizeSelection,
   type BuildOption,
 } from "../game/hudModel";
-import { localSlot, type SkirmishConfig } from "../game/skirmishConfig";
+import { isActive, localSlot, type SkirmishConfig } from "../game/skirmishConfig";
 import { Minimap } from "../ui/Minimap";
 import { Panel, StatRow, TermButton } from "../ui/components";
 import type { MatchResult } from "./router";
@@ -34,15 +34,25 @@ const SHIFT_PRODUCE = 5;
 export function InGame(props: {
   session: GameSession;
   config: SkirmishConfig;
+  /**
+   * Debug hotseat mode: F9 hands control (and the fog of war) to the next player, so one
+   * person can drive every side. The match then ends only when it is decided.
+   */
+  hotseat?: boolean;
   onEnd: (result: MatchResult) => void;
   onQuit: () => void;
 }): JSX.Element {
   const { session, config } = props;
+  const hotseat = props.hotseat === true;
   const [, setFrame] = useState(0);
   const [paused, setPaused] = useState(false);
-  const me = localSlot(config);
-  const faction = getFaction(config.slots[me]?.factionId ?? "");
+  /** The human player's slot: their faction skins the HUD and the result is theirs. */
+  const home = localSlot(config);
+  /** The slot being commanded now; differs from `home` only in hotseat mode. */
+  const me = session.localSlot;
+  const faction = getFaction(config.slots[home]?.factionId ?? "");
   const compiled = rulesetFaction(RULESET, faction.id);
+  const active = rulesetFaction(RULESET, config.slots[me]?.factionId ?? faction.id);
   const commander = RULESET.units[compiled.commanderUnit];
   const map = getMap(config.mapId);
   const ended = useRef(false);
@@ -63,14 +73,14 @@ export function InGame(props: {
     const timer = setInterval(() => {
       // The match ends for us once the simulation says so; the HUD poll is quick enough.
       const match = session.snapshot?.match;
-      const outcome = match ? matchOutcome(match, me) : undefined;
+      const outcome = match && (!hotseat || match.over) ? matchOutcome(match, home) : undefined;
       if (outcome) end(outcome);
       else setFrame((n) => n + 1);
     }, HUD_REFRESH_MS);
     return () => {
       clearInterval(timer);
     };
-  }, [session, me]);
+  }, [session, home, hotseat]);
 
   useEffect(() => {
     session.setPaused(paused);
@@ -82,14 +92,19 @@ export function InGame(props: {
         setPaused((p) => !p);
         e.preventDefault();
       } else if (e.code === "KeyC" && !paused && !e.repeat) {
-        session.focusType(compiled.commanderUnit);
+        session.focusType(active.commanderUnit);
+      } else if (e.code === "F9" && hotseat && !paused) {
+        const slots = activeSlots(config);
+        const next = slots[(slots.indexOf(session.localSlot) + 1) % slots.length];
+        if (next !== undefined) session.setLocalSlot(next);
+        e.preventDefault();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("keydown", onKey);
     };
-  }, [session, paused, compiled.commanderUnit]);
+  }, [session, paused, active.commanderUnit, hotseat, config]);
 
   const snapshot = session.snapshot;
   const selected = session.selection.ids;
@@ -133,6 +148,15 @@ export function InGame(props: {
           {faction.shortName.toUpperCase()} // {faction.commanderTitle.toUpperCase()}
         </span>
         <span class="hud-map">{map.name}</span>
+        {hotseat && (
+          <span
+            class="hud-hotseat"
+            data-testid="hotseat"
+            title={`Hotseat: commanding slot ${me + 1}. F9: next player`}
+          >
+            P{me + 1} [F9]
+          </span>
+        )}
         <span class="hud-clock" title="Match time">
           T+{formatClock(session.tick)}
         </span>
@@ -369,4 +393,9 @@ function ProductionQueue(props: { snapshot: SnapshotBuffers; id: number }): JSX.
 function indexOfSelected(snapshot: SnapshotBuffers, selected: ReadonlySet<number>): number {
   for (let i = 0; i < snapshot.count; i++) if (selected.has(snapshot.ids[i] ?? 0)) return i;
   return -1;
+}
+
+/** Slots with a player in them (human or AI), in slot order. */
+function activeSlots(config: SkirmishConfig): number[] {
+  return config.slots.flatMap((s, i) => (isActive(s) ? [i] : []));
 }

@@ -34,6 +34,9 @@ function configOf(screen: Screen): SkirmishConfig | undefined {
  * running {@link GameSession}, and the faction skin. Enter and Escape act as the primary and
  * back actions on every screen except the match, which handles its own keys.
  */
+/** `?hotseat`: debug mode in which one person commands every player in turn (F9). */
+const HOTSEAT = new URLSearchParams(window.location.search).has("hotseat");
+
 export function App(props: { caps: Capabilities }): JSX.Element {
   const [screen, setScreen] = useState<Screen>({ id: "menu" });
   const [lines, setLines] = useState<readonly LoadLine[]>([]);
@@ -173,6 +176,7 @@ export function App(props: { caps: Capabilities }): JSX.Element {
         <InGame
           session={session.current}
           config={screen.config}
+          hotseat={HOTSEAT}
           onEnd={(result) => {
             dispatch({ t: "ended", result });
           }}
