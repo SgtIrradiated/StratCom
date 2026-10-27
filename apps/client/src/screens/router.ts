@@ -1,13 +1,26 @@
 import type { SkirmishConfig } from "../game/skirmishConfig";
 
+/** One player's record in a finished match. */
+export interface PlayerResult {
+  slot: number;
+  kills: number;
+  losses: number;
+  defeated: boolean;
+}
+
 /** How a match ended, shown on the Results screen. */
 export interface MatchResult {
-  /** `surrender` ends the match as a loss; victory conditions arrive with combat in M5. */
-  outcome: "victory" | "defeat" | "surrender";
+  /**
+   * For the local player: their team won, they were defeated, everyone fell at once (`draw`),
+   * or they left (`surrender`, a loss).
+   */
+  outcome: "victory" | "defeat" | "draw" | "surrender";
   /** Simulation ticks played. */
   ticks: number;
   /** Fingerprint of the content the match ran on. */
   rulesetHash: number;
+  /** Every player's record, in slot order; empty if the match ended before any snapshot. */
+  players: PlayerResult[];
 }
 
 /**

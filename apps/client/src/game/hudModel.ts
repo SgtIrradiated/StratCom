@@ -1,6 +1,30 @@
 import type { CompiledRuleset } from "@stratcom/data";
-import { EntityKind, TICK_RATE, type SnapshotBuffers } from "@stratcom/sim";
+import { EntityKind, TICK_RATE, type MatchStatus, type SnapshotBuffers } from "@stratcom/sim";
 import { selectionRoles } from "../input/orders";
+import type { MatchResult, PlayerResult } from "../screens/router";
+
+/**
+ * How the match has ended for player `slot`, or undefined while it plays on for them. A
+ * defeated player's match ends at once, even if allies fight on (spectating arrives with M8).
+ */
+export function matchOutcome(
+  match: MatchStatus,
+  slot: number,
+): Exclude<MatchResult["outcome"], "surrender"> | undefined {
+  const me = match.players.find((p) => p.slot === slot);
+  if (match.over) {
+    if (match.winnerTeam < 0) return "draw";
+    return me?.team === match.winnerTeam ? "victory" : "defeat";
+  }
+  return me?.defeated === true ? "defeat" : undefined;
+}
+
+/** Every player's record from a match status, in slot order. */
+export function playerResults(match: MatchStatus): PlayerResult[] {
+  return match.players
+    .map((p) => ({ slot: p.slot, kills: p.kills, losses: p.losses, defeated: p.defeated }))
+    .sort((a, b) => a.slot - b.slot);
+}
 
 /** One line of the selection panel: a unit type and how many of it are selected. */
 export interface SelectionGroup {

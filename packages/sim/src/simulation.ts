@@ -9,6 +9,7 @@ import type { SnapshotBuffers } from "./snapshot";
 import { CombatSystem } from "./systems/combat";
 import { CommandSystem } from "./systems/commands";
 import { HealthSystem, type PlayerCombatStats } from "./systems/health";
+import { VictorySystem, type MatchStatus } from "./systems/victory";
 import { MovementSystem } from "./systems/movement";
 import { SeparationSystem } from "./systems/separation";
 import { WorkSystem } from "./systems/work";
@@ -21,6 +22,7 @@ export {
   type FeatureTypeStats,
   type InitialFeature,
   type InitialUnit,
+  type MatchRules,
   type MatchSetup,
   type MovementClassDef,
   type PlayerSetup,
@@ -36,8 +38,8 @@ export {
  *
  * Each tick runs the systems in `systems/` in a fixed order (docs/PLAN.md §4.4): commands,
  * movement (orders and flow fields), separation, combat (projectiles, targeting, weapons),
- * construction, repair, reclaim and the economy (ADR-0010), then damage and death. Shared
- * state lives in a {@link SimContext}.
+ * construction, repair, reclaim and the economy (ADR-0010), then damage and death, then
+ * defeat and victory. Shared state lives in a {@link SimContext}.
  */
 export class Simulation {
   private readonly ctx: SimContext;
@@ -47,6 +49,7 @@ export class Simulation {
   private readonly work: WorkSystem;
   private readonly health: HealthSystem;
   private readonly combat: CombatSystem;
+  private readonly victory: VictorySystem;
 
   constructor(setup: MatchSetup) {
     const slots = new Set(setup.players.map((p) => p.slot));
@@ -61,10 +64,11 @@ export class Simulation {
     const ctx = new SimContext(setup);
     this.ctx = ctx;
     // Registration order with the context fixes the state-hash order: orders, work, health,
-    // combat.
+    // combat, victory.
     this.work = new WorkSystem(ctx);
     this.health = new HealthSystem(ctx);
     this.combat = new CombatSystem(ctx, this.health);
+    this.victory = new VictorySystem(ctx, this.health);
     this.commands = new CommandSystem(ctx, this.work);
     this.movement = new MovementSystem(ctx, (order) => this.work.workFocus(order));
     this.separation = new SeparationSystem(ctx);
@@ -125,6 +129,11 @@ export class Simulation {
     return readEconomy(this.work.econ, slot);
   }
 
+  /** Every player's standing, and whether (and by whom) the match has been won. */
+  matchStatus(): MatchStatus {
+    return this.victory.status();
+  }
+
   /** Kills and losses of player `slot` so far. */
   playerStats(slot: number): PlayerCombatStats {
     return this.health.playerStats(slot);
@@ -153,6 +162,7 @@ export class Simulation {
     this.combat.run();
     this.work.run();
     this.health.run();
+    this.victory.run();
     this.ctx.tick++;
   }
 
@@ -221,6 +231,7 @@ export class Simulation {
       m++;
     }
     out.projectileCount = m;
+    out.match = this.victory.status();
     out.events = this.ctx.events;
     this.ctx.events = [];
   }

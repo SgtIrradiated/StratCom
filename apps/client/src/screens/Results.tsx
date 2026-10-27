@@ -9,6 +9,7 @@ import type { MatchResult } from "./router";
 const HEADLINE: Record<MatchResult["outcome"], string> = {
   victory: "VICTORY",
   defeat: "DEFEAT",
+  draw: "MUTUAL DESTRUCTION",
   surrender: "WITHDRAWAL",
 };
 
@@ -29,19 +30,24 @@ export function Results(props: {
         </div>
         <StatRow label="Theatre" value={getMap(config.mapId).name} />
         <StatRow label="Duration" value={formatClock(result.ticks)} />
-        {config.slots.map((s, i) =>
-          isActive(s) ? (
+        {config.slots.map((s, i) => {
+          if (!isActive(s)) return null;
+          const record = result.players.find((p) => p.slot === i);
+          return (
             <StatRow
               key={i}
               label={i === me ? "You" : `Slot ${i + 1} (AI)`}
-              value={<span style={{ color: s.color }}>{getFaction(s.factionId).name}</span>}
+              value={
+                <span data-testid={`results-slot-${i}`}>
+                  <span style={{ color: s.color }}>{getFaction(s.factionId).name}</span>
+                  {record &&
+                    ` · ${record.kills} destroyed, ${record.losses} lost${record.defeated ? " · defeated" : ""}`}
+                </span>
+              }
             />
-          ) : null,
-        )}
+          );
+        })}
         <StatRow label="Ruleset" value={hashHex(result.rulesetHash)} />
-        <p class="muted small">
-          Victory by destroying the enemy commander arrives with combat in M5.
-        </p>
       </Panel>
       <footer class="screen-actions">
         <TermButton onClick={props.onMenu} hotkey="Esc" testId="results-menu">

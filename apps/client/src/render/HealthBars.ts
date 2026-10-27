@@ -23,7 +23,12 @@ const EMPTY = new Color("#ff4a3a");
 export class HealthBars {
   readonly mesh: InstancedMesh;
   private readonly geometry = new PlaneGeometry(1, 1);
-  private readonly material = new MeshBasicMaterial({ depthTest: false, depthWrite: false });
+  // Exact colours: tone mapping would wash the bars out to white.
+  private readonly material = new MeshBasicMaterial({
+    depthTest: false,
+    depthWrite: false,
+    toneMapped: false,
+  });
   private readonly matrices: Float32Array;
   private readonly colors: Float32Array;
   private readonly right = new Vector3();

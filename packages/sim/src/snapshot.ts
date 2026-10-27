@@ -1,6 +1,7 @@
 import { ECON_STRIDE, MAX_PLAYERS, readEconomy, type PlayerEconomy } from "./economy";
 import type { SimEvent } from "./events";
 import { PROJECTILE_CAPACITY } from "./projectiles";
+import type { MatchStatus } from "./systems/victory";
 
 /** One factory's production queue, as shown in the HUD. */
 export interface ProductionInfo {
@@ -61,6 +62,8 @@ export interface SnapshotBuffers {
   production: ProductionInfo[];
   /** What happened since the previous snapshot (shots, deaths). Structured-cloned. */
   events: SimEvent[];
+  /** Every player's standing and the result. Structured-cloned. */
+  match: MatchStatus;
 }
 
 /** Allocates snapshot buffers able to hold `capacity` entities. */
@@ -89,6 +92,7 @@ export function createSnapshotBuffers(capacity: number): SnapshotBuffers {
     economy: new Float64Array(MAX_PLAYERS * ECON_STRIDE),
     production: [],
     events: [],
+    match: { over: false, winnerTeam: -1, players: [] },
   };
 }
 

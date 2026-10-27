@@ -137,6 +137,14 @@ export interface MatchSetup {
   deposits?: readonly Vec2[];
   /** Entity capacity; defaults to the initial unit and feature count plus 4096. */
   capacity?: number;
+  /** Match rules from the lobby. */
+  rules?: MatchRules;
+}
+
+/** Lobby rules that change how a match plays out. */
+export interface MatchRules {
+  /** How players are defeated; defaults to `assassination`. */
+  victory?: "assassination" | "annihilation";
 }
 
 /** Default entity capacity for a setup. */

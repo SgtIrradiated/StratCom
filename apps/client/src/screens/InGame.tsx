@@ -2,7 +2,7 @@ import { RULESET, getFaction, getMap, rulesetFaction } from "@stratcom/data";
 import { hashHex } from "@stratcom/shared";
 import { snapshotEconomy, type PlayerEconomy, type SnapshotBuffers } from "@stratcom/sim";
 import type { JSX } from "preact";
-import { useEffect, useReducer, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import type { GameSession } from "../game/GameSession";
 import {
   buildMenu,
@@ -10,6 +10,8 @@ import {
   formatClock,
   formatRate,
   formatSpending,
+  matchOutcome,
+  playerResults,
   summarizeSelection,
   type BuildOption,
 } from "../game/hudModel";
@@ -35,19 +37,38 @@ export function InGame(props: {
   onQuit: () => void;
 }): JSX.Element {
   const { session, config } = props;
-  const [, refresh] = useReducer((n: number) => n + 1, 0);
+  const [, setFrame] = useState(0);
   const [paused, setPaused] = useState(false);
   const me = localSlot(config);
   const faction = getFaction(config.slots[me]?.factionId ?? "");
   const compiled = rulesetFaction(RULESET, faction.id);
   const map = getMap(config.mapId);
+  const ended = useRef(false);
+  const onEnd = props.onEnd;
+  const end = (outcome: MatchResult["outcome"]): void => {
+    if (ended.current) return;
+    ended.current = true;
+    const match = session.snapshot?.match;
+    onEnd({
+      outcome,
+      ticks: session.tick,
+      rulesetHash: RULESET.hash,
+      players: match ? playerResults(match) : [],
+    });
+  };
 
   useEffect(() => {
-    const timer = setInterval(refresh, HUD_REFRESH_MS);
+    const timer = setInterval(() => {
+      // The match ends for us once the simulation says so; the HUD poll is quick enough.
+      const match = session.snapshot?.match;
+      const outcome = match ? matchOutcome(match, me) : undefined;
+      if (outcome) end(outcome);
+      else setFrame((n) => n + 1);
+    }, HUD_REFRESH_MS);
     return () => {
       clearInterval(timer);
     };
-  }, []);
+  }, [session, me]);
 
   useEffect(() => {
     session.setPaused(paused);
@@ -94,7 +115,7 @@ export function InGame(props: {
   };
 
   const surrender = (): void => {
-    props.onEnd({ outcome: "surrender", ticks: session.tick, rulesetHash: RULESET.hash });
+    end("surrender");
   };
 
   return (

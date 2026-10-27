@@ -3,9 +3,12 @@ import "@fontsource/vt323/400.css";
 import "./style.css";
 import "./styles/terminal.css";
 import { assert } from "@stratcom/shared";
+import { RULESET } from "@stratcom/data";
 import {
   TEST_UNIT_TYPES,
+  createDuelMatch,
   createTestMatch,
+  duelCommands,
   runDetScenario,
   runSkirmishDetScenario,
 } from "@stratcom/sim";
@@ -13,6 +16,12 @@ import { h, render } from "preact";
 import { StatsPanel, parseBenchCount } from "./bench/stats";
 import { blockingProblems, detectCapabilities, type Capabilities } from "./boot/capabilities";
 import { GameSession } from "./game/GameSession";
+import { matchOutcome } from "./game/hudModel";
+import {
+  featureVisualsFromRuleset,
+  visualsFromRuleset,
+  weaponKindsFromRuleset,
+} from "./game/visuals";
 import type { UnitVisual } from "./render/types";
 import { App } from "./screens/App";
 import { renderBootError } from "./ui/bootPanel";
@@ -26,7 +35,9 @@ import { renderBootError } from "./ui/bootPanel";
  * data-screen>` names the current screen.
  *
  * Debug flags skip the menus: `?bench=N` runs N scripted test units with the performance
- * panel, and `?detcheck` publishes the determinism hashes (test and skirmish scenarios).
+ * panel, `?detcheck` publishes the determinism hashes (test and skirmish scenarios), and
+ * `?duel` runs a short real-content fight that ends in victory for slot 0, publishing
+ * `<html data-outcome>` when the simulation decides it.
  */
 
 /** Placeholder looks for the bench scenario, index-aligned with `TEST_UNIT_TYPES`. */
@@ -55,6 +66,8 @@ if (problems.length > 0) {
   root["boot"] = "error";
 } else if (bench !== undefined) {
   startBench(bench, ui);
+} else if (new URLSearchParams(window.location.search).has("duel")) {
+  startDuel(ui);
 } else {
   startApp(caps, ui);
 }
@@ -89,5 +102,37 @@ function startBench(units: number, ui: HTMLElement): void {
   import.meta.hot?.dispose(() => {
     session.dispose();
     stats.element.remove();
+  });
+}
+
+function startDuel(ui: HTMLElement): void {
+  const setup = createDuelMatch();
+  const session = new GameSession({
+    setup,
+    unitVisuals: visualsFromRuleset(RULESET),
+    featureVisuals: featureVisualsFromRuleset(RULESET),
+    weaponKinds: weaponKindsFromRuleset(RULESET),
+    localSlot: 0,
+    focusType: setup.initialUnits[0]?.type ?? 0,
+    onError(message) {
+      renderBootError(ui, [`Simulation error: ${message}`]);
+      root["boot"] = "error";
+    },
+  });
+  root["screen"] = "duel";
+  const timer = setInterval(() => {
+    const match = session.snapshot?.match;
+    const outcome = match ? matchOutcome(match, 0) : undefined;
+    if (!outcome) return;
+    root["outcome"] = outcome;
+    clearInterval(timer);
+  }, 100);
+  void session.firstFrame.then(() => {
+    for (const cmd of duelCommands(setup)) session.issue(cmd);
+    root["boot"] = "ready";
+  });
+  import.meta.hot?.dispose(() => {
+    clearInterval(timer);
+    session.dispose();
   });
 }

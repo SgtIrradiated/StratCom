@@ -45,11 +45,12 @@ interface Shot {
  */
 export class CombatLayer {
   readonly group = new Group();
-  private readonly projGeometry = new IcosahedronGeometry(0.45, 0);
-  private readonly projMaterial = new MeshBasicMaterial({ color: "#ffffff" });
+  private readonly projGeometry = new IcosahedronGeometry(0.8, 0);
+  // Effects keep their exact, bright colours: tone mapping would wash them out.
+  private readonly projMaterial = new MeshBasicMaterial({ color: "#ffffff", toneMapped: false });
   private readonly projectiles: InstancedMesh;
   private readonly lineGeometry = new BufferGeometry();
-  private readonly lineMaterial = new LineBasicMaterial({ vertexColors: true });
+  private readonly lineMaterial = new LineBasicMaterial({ vertexColors: true, toneMapped: false });
   private readonly lines: LineSegments;
   private readonly linePositions = new Float32Array(MAX_SHOTS * 6);
   private readonly lineColors = new Float32Array(MAX_SHOTS * 6);
