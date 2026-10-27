@@ -102,6 +102,24 @@ worker with a `recycle` message once the next snapshot replaces them; the worker
 
 Server (unchanged since M0): Fastify serves `client/dist` with COOP/COEP, plus `/healthz`.
 
+## Planned: models and assets (C1–C3)
+
+Designed in [ADR-0011](adr/0011-asset-pipeline-and-model-loading.md), not built yet. Art
+never reaches the simulation, so it cannot cause a desync.
+
+```
+assets/models/<id>.glb + <id>.asset.json ──▶ tools/asset-pipeline ──▶ public/assets/models/<id>.<hash>.glb
+   (authored, licence sidecar)                 check · normalise ·      public/asset-manifest.json
+                                               (C3: meshopt, KTX2)
+unit data: visual.model = "<id>"
+                     │
+Loading screen ─▶ src/assets/ (fetch bytes, cache across matches; no three.js)
+                     │
+                     ▼
+src/render/models/ ModelLibrary ─▶ ModelProvider ─▶ UnitLayer: one InstancedMesh per (type, part)
+                   GLTFLoader         model, or the placeholder box as fallback
+```
+
 ## Runtime: target
 
 ```

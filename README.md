@@ -84,6 +84,7 @@ e2e/              Playwright tests
 - [Conventions](docs/conventions.md): code style, simulation rules, git, dependencies
 - [Architecture Decision Records](docs/adr/README.md)
 - [Content authoring](docs/content-authoring.md): adding units, factions and maps
+- [Art guide](docs/art-guide.md): models, textures, placeholders and converting OBJ files
 - [Deployment](docs/deployment.md): self-hosting with Docker and Caddy
 - [Contributing](CONTRIBUTING.md)
 

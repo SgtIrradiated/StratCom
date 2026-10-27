@@ -13,7 +13,8 @@ in without structural changes.
 > code sketches in §6 were written before implementation; the real definitions live in
 > `packages/data/src/schema` and `packages/sim/src`.
 > [ADR-0009](adr/0009-ruleset-compiler-and-hash.md) records how the ruleset is compiled and
-> [ADR-0010](adr/0010-flow-economy-and-construction.md) how the economy works. The
+> [ADR-0010](adr/0010-flow-economy-and-construction.md) how the economy works.
+> [ADR-0011](adr/0011-asset-pipeline-and-model-loading.md) (proposed) plans model loading. The
 > milestone plan lives in
 > [`ROADMAP.md`](ROADMAP.md), and settled decisions are listed in [§12](#12-decisions).
 > Architecture Decision Records in [`adr/`](adr/README.md) take precedence over this document
@@ -191,7 +192,11 @@ to swap in fixed-point (Q16.16) arithmetic behind the same interface.
   visibility grid and sampled by the terrain and unit shaders.
 - **Assets**: glTF 2.0 (`.glb`) compressed with **meshopt**, and textures in **KTX2/Basis**.
   Until real art exists, a _placeholder asset provider_ generates primitives (boxes, cylinders)
-  per unit role from the same unit definitions.
+  per unit role from the same unit definitions. How models get from an artist into an
+  `InstancedMesh` (the `assets/` folder, licence sidecars, validation, the manifest, the
+  `ModelProvider` interface, team-colour masks) is designed in
+  [ADR-0011](adr/0011-asset-pipeline-and-model-loading.md) and scheduled as content-track
+  milestones C1–C3.
 
 ### 4.4 Simulation core systems (in tick order)
 
@@ -263,9 +268,10 @@ stratcom/
 │   ├── protocol/               # @stratcom/protocol — net messages, codecs, version (added in M8)
 │   └── shared/                 # @stratcom/shared — tiny utils used by everyone (Result, assert, ids)
 ├── tools/
-│   ├── asset-pipeline/         # glTF optimize (meshopt), KTX2 encode, manifest generation
+│   ├── asset-pipeline/         # validate, normalise, optimise glTF; manifest (ADR-0011)
 │   ├── map-tools/              # heightmap → map package, validation
 │   └── det-check/              # runs scripted matches, compares hashes across runtimes
+├── assets/                     # authored game-ready models + licence sidecars (ADR-0011)
 ├── docs/
 │   ├── PLAN.md                 # this file
 │   ├── architecture.md         # living architecture overview (diagrams from §3)

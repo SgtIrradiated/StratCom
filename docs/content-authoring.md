@@ -66,6 +66,8 @@ without any UI changes.
 
 Values are **per second**, never per tick. The simulation converts them with `TICK_RATE`.
 
+For models and textures, see the [art guide](art-guide.md).
+
 ## Add a weapon
 
 Add an entry to the weapons array in the same `units.ts`:

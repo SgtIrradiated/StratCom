@@ -30,6 +30,9 @@ setting. TypeScript pnpm monorepo. Read `docs/architecture.md` and `docs/ROADMAP
 ## Where things live
 
 - Content (units, weapons, factions, maps): `packages/data`, see `docs/content-authoring.md`.
+- Models and textures: `docs/art-guide.md` for artists; the planned pipeline and loader
+  (`assets/`, `tools/asset-pipeline`, `src/assets`, `src/render/models`) are in ADR-0011.
+  Art must never reach the simulation.
   It compiles to `RULESET` with numeric ids and a hash (ADR-0009).
 - Match setup from lobby settings: `createSkirmishSetup` in `packages/sim/src/skirmish.ts`.
 - Economy, construction, factories, reclaim: the work step in `packages/sim/src/simulation.ts`

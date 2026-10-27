@@ -223,12 +223,58 @@ reproduces it exactly.
 
 ## Content track (parallel, from M3 onward)
 
-The game is data-driven, so content can be produced alongside engine work:
+The game is data-driven, so content can be produced alongside engine work. Models and
+textures follow [ADR-0011](adr/0011-asset-pipeline-and-model-loading.md) (proposed); artists
+work from the [art guide](art-guide.md).
 
-- Real unit models (glTF + meshopt, KTX2 textures) through `tools/asset-pipeline`
+### C1: Model loading foundation (planned, before M5)
+
+**Goal:** a model made per the art guide appears in the game with no code change.
+
+- `visual.model` (optional asset id) on units and features; no model keeps the box
+- `assets/` source folder: `.glb` + `.asset.json` sidecar (author, licence, source) + optional
+  team mask; generated `CREDITS.md`
+- `tools/asset-pipeline` on glTF-Transform: `pnpm assets:check` (in `pnpm check` and CI) and
+  `pnpm assets:build` (before dev and build): validation rules, normalisation, content-hashed
+  output and `asset-manifest.json`
+- Client: manifest and byte loading in `src/assets/` with a loading-screen step and a cache
+  across matches; `ModelLibrary` and a `ModelProvider` interface in `src/render/models/`;
+  `UnitLayer` draws models or placeholder boxes per type
+- Team-colour mask in the material; build progress, selection and strategic zoom work on
+  models unchanged
+- One real CC0 or self-made model committed as the first asset
+
+**Exit:** drop a `.glb` and its sidecar into `assets/models/`, add `model: "<id>"` to the unit,
+and it shows in a match in its owner's colours. `pnpm check` rejects a model with a wrong
+scale, a floating origin or no licence, naming the file and the rule. A missing or broken
+model falls back to the box with a warning, never an error. Covered by unit tests on the
+validator (fixtures built in memory with glTF-Transform) and an e2e check that the first
+asset loads.
+
+### C2: Articulated parts (planned, with M5)
+
+- Named parts (`turret`, `barrel`) as their own instanced meshes, aimed from the snapshot
+- `muzzle` points from the manifest for muzzle flashes and projectile origins
+
+**Exit:** a tank's turret tracks its target while the hull drives the other way.
+
+### C3: Asset optimisation (planned, before M7)
+
+- meshopt geometry compression; KTX2/Basis (or resized WebP) textures; decoders served from
+  our own origin
+- A download-size budget for the first release, reported in CI
+
+**Exit:** the full asset set loads within the budget on a cold cache, and `pnpm build`
+reports sizes per asset.
+
+### Later
+
+- Terrain texture sets (replacing the vertex colours), decals
+- Animation for walkers (vertex animation textures or rigid part animation)
 - Map format v1, map tools, and eventually an editor
 - Music, SFX, voice lines
-- Asset licensing decision (for example CC BY-SA 4.0), separate from the AGPL code license
+- Asset licensing decision (for example CC BY-SA 4.0), separate from the AGPL code license.
+  Needed before the first original art is merged (ADR-0011)
 
 ## Later
 
