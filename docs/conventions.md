@@ -9,7 +9,8 @@
   imports inside a package and the package name (`@stratcom/sim`) across packages.
 - **Naming:** `PascalCase` for types and classes, `camelCase` for functions and variables,
   `SCREAMING_SNAKE_CASE` for module-level constants. Files are named after their main export
-  (`SceneRenderer.ts`, `capabilities.ts`). Content ids are `lower_snake_case`.
+  (`SceneRenderer.ts`, `capabilities.ts`). Content ids are `lower_snake_case`, and unit
+  and weapon ids start with a faction tag (`dir_`, `scr_`).
 - **Errors:** use `assert()` for programming errors and thrown `Error`s with actionable messages
   for bad input or config. Validate at the boundaries (env, network, content) and trust types
   inside.
@@ -32,6 +33,9 @@ Inside `packages/sim`:
 
 - Unit tests sit next to the code as `*.test.ts` (Vitest). Browser tests live in `e2e/`
   (Playwright).
+- Keep UI logic testable: pure modules (`skirmishConfig.ts`, `router.ts`, `hudModel.ts`)
+  carry the logic and get unit tests; Preact components stay thin and are covered by e2e.
+  Vitest runs in Node, so test files must not import `.tsx` components.
 - Every sim system gets unit tests. Bugs get a regression test before the fix.
 - Reference vectors (PRNG, hash) and golden replays are only re-recorded deliberately, with a
   reason in the commit message.

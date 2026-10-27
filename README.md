@@ -5,8 +5,33 @@ _Beyond All Reason_: huge battles, a flow economy, strategic zoom. It is set in 
 retro-futuristic wasteland, where the **Atomic Directorate** emerges from its Shelters to
 reclaim the surface and the **Scrapborn Clans** intend to strip them for parts.
 
-> **Status: pre-alpha.** The M0 foundation is done. See the [roadmap](docs/ROADMAP.md).
-> The next milestone is M1: simulation core and render bridge.
+> **Status: pre-alpha.** Milestones M0–M3 are implemented: a deterministic simulation in a
+> worker, an RTS camera with strategic zoom, two factions with placeholder units, and the full
+> menu flow from the main menu through faction select into a skirmish. Economy and
+> construction (M4) are next. See the [roadmap](docs/ROADMAP.md).
+
+## What you can do today
+
+Start `pnpm dev`, choose **Skirmish**, pick a map and the AI's faction, choose your faction
+and colour, and deploy. You get your commander and a small starting force on a flattened base
+site. Your units can be selected and moved; the HUD is skinned for your faction. Combat,
+building and the AI's behaviour arrive in M4–M6.
+
+| Input                       | Action                                                 |
+| --------------------------- | ------------------------------------------------------ |
+| Left click / drag           | Select (Shift adds; double-click selects that type)    |
+| Right click                 | Move                                                   |
+| X                           | Stop                                                   |
+| WASD / arrows / screen edge | Pan                                                    |
+| Q / E, middle-drag          | Rotate                                                 |
+| Wheel                       | Zoom to cursor; far out, units become strategic icons  |
+| Ctrl+1–9, then 1–9          | Store / recall a control group (twice to centre on it) |
+| C                           | Centre on your commander                               |
+| Esc                         | Pause menu in a match; back on menu screens            |
+| Enter                       | Primary action on menu screens                         |
+
+Debug flags: `/?bench=2000` runs a 2,000-unit stress test with a performance panel;
+`/?detcheck` runs the determinism scenarios.
 
 ## Getting started
 
@@ -41,7 +66,7 @@ apps/client       Vite + three.js browser client
 apps/server       Fastify server: static hosting, API, (later) lockstep relay
 packages/shared   Tiny shared utilities
 packages/sim      Deterministic simulation (pure TypeScript)
-packages/data     Factions and (later) units, weapons, maps, validated with zod
+packages/data     Content: factions, units, weapons, maps, ruleset compiler (zod)
 deploy/           Dockerfile, docker-compose.yml, Caddyfile
 docs/             Plan, roadmap, architecture, conventions, ADRs, deployment guide
 e2e/              Playwright tests

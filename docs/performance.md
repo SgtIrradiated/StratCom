@@ -11,7 +11,10 @@ Budgets come from [ADR-0007](adr/0007-simulation-tick-rate.md) and the [roadmap]
   panel shows fps, draw calls, mean and worst sim tick, and the state hash. The tick figures
   come from the worker, so they include no rendering cost.
 - **Determinism:** `pnpm build && pnpm test:e2e` runs `e2e/determinism.spec.ts` in Chromium,
-  Firefox and WebKit against the Node result.
+  Firefox and WebKit against the Node result, for both the pinned test scenario and the
+  real-content skirmish scenario. Firefox and WebKit need `pnpm exec playwright install
+firefox webkit`; WebKit also needs host libraries (`sudo pnpm exec playwright install-deps
+webkit`) that are often missing under WSL.
 
 ## Baselines
 
@@ -20,6 +23,21 @@ Budgets come from [ADR-0007](adr/0007-simulation-tick-rate.md) and the [roadmap]
 | 2026-10-27      | WSL2, Node 20.19, Vitest (V8), one run               | 2,000 units, 400 ticks                                                            | tick avg **0.29 ms**, worst 15.6 ms (JIT warm-up on the first ticks)                      |
 | 2026-10-27      | Headless Chromium in the sim worker (`/?bench=2000`) | 2,000 units, 8 s                                                                  | tick avg **0.37 ms**, max 2.4 ms                                                          |
 | 2026-10-27 (M2) | WSL2, Node 20.19, 720 warm ticks                     | 2,000 units, hills, flow fields, separation, 2 players re-ordering every 40 ticks | tick avg **1.18 ms**, worst 11 ms (the tick where both players' flow fields are computed) |
+| 2026-10-27 (M3) | WSL2, Node 20.19 (Vitest), 720 warm ticks            | Same as M2 (separation now handles structures)                                    | tick avg **1.08 ms**, worst 14 ms: no regression                                          |
+
+### Match start-up (M3)
+
+Measured in Node on the same machine, warm, 1v1 with each faction's starting force (19 units):
+
+| Map            | Size    | `createSkirmishSetup` (terrain, plateaus, placement) | `new Simulation` (nav grids) |
+| -------------- | ------- | ---------------------------------------------------- | ---------------------------- |
+| Ashfall Basin  | 2,048 m | 10.5 ms                                              | 1.3 ms                       |
+| Rustbelt Ridge | 2,048 m | 7.0 ms                                               | 1.4 ms                       |
+| Glassed Flats  | 1,280 m | 2.7 ms                                               | 0.7 ms                       |
+
+Loading time is dominated by the renderer, the worker start and the first snapshot, not by
+match setup. The real-content determinism scenario (`runSkirmishDetScenario`, 600 ticks,
+4 players) takes about 0.5 s in Node.
 
 **Not yet measured:** frame rate on a real GPU. Headless Chromium here uses SwiftShader
 (software GL) and showed about 16 fps at 2,000 units; that says nothing about GPU hardware.
@@ -28,6 +46,9 @@ result in the table above.
 
 ## Notes
 
-- Movement is the only costly system in M1 (no separation, pathfinding or targeting yet), so
-  these numbers will rise as M2–M5 land. Re-measure at each milestone.
+- The sim's costly systems so far are flow-field searches (one per move order and movement
+  class) and separation. Targeting, projectiles and the economy (M4–M5) will add to them.
+  Re-measure at each milestone.
+- The real ruleset has three movement classes, so a skirmish builds three navigation grids,
+  and a mixed-class move order runs up to three flow-field searches.
 - Draw calls scale with unit _types_ (one `InstancedMesh` each), not with unit count.

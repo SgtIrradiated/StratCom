@@ -38,6 +38,23 @@ state on every peer.
 Current commands: `move { slot, units, to }` and `stop { slot, units }`. `queue`, attack,
 build, reclaim and the rest arrive with their milestones.
 
+## Match setup (from M3)
+
+Lobby settings become a `MatchSetup` through `createSkirmishSetup({ seed, map, ruleset,
+players })` in `@stratcom/sim`, a pure function. Peers therefore exchange only the settings
+(map id, seed, the slot list), never terrain or unit lists, and derive identical setups.
+
+- The slot model (`apps/client/src/game/skirmishConfig.ts`) is what the online lobby will
+  edit: `{ kind: human | ai | open | closed, factionId, team, color }` per start position.
+  Only `human` and `ai` slots become players; slot numbers are kept, so slot 3 always starts
+  at the map's fourth start position.
+- The join handshake must compare `RULESET.hash` ([ADR-0009](adr/0009-ruleset-compiler-and-hash.md))
+  together with the protocol version. Any content difference, even a renamed unit, changes
+  the hash.
+- AI slots are virtual players that issue ordinary commands (M6). Their commands travel
+  like a human's, so peers need nothing AI-specific; which peer runs them is an open
+  question below.
+
 ## What is deliberately not networked
 
 - **Camera, selection and control groups** are local UI state. Only the resulting command
@@ -52,3 +69,4 @@ build, reclaim and the rest arrive with their milestones.
 - Adaptive input delay: measured from round-trip time, with a floor of one turn.
 - Late join and reconnect: replay the turn log from tick 0 versus a state snapshot transfer.
   Replay from the turn log is already required for replays, so it is the default.
+- Which peer runs the AI slots, and who takes over if that peer leaves.

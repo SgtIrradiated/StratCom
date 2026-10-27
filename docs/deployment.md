@@ -31,7 +31,8 @@ docker compose -f deploy/docker-compose.yml ps        # both services "running",
 curl -s https://game.example.com/healthz              # {"status":"ok",...}
 ```
 
-Open `https://game.example.com`. The boot panel should report `Cross-origin isolated: yes`.
+Open `https://game.example.com`. The **System check** panel on the main menu should report
+`Cross-origin isolated: yes`.
 
 ## Updating
 
@@ -63,9 +64,9 @@ certificate. Your browser will warn once.
 
 ## Troubleshooting
 
-| Symptom                                     | Likely cause                                                                       |
-| ------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Caddy logs `challenge failed`               | DNS doesn't point at the server yet, or port 80 is blocked                         |
-| `stratcom` stays `unhealthy`                | `docker compose logs stratcom`. An invalid env var is reported by name at start-up |
-| Boot panel says `Cross-origin isolated: no` | A proxy in front of Caddy (such as a CDN) is stripping the COOP/COEP headers       |
-| WebGL2 error in the browser                 | Hardware acceleration is disabled in the browser, or the drivers are too old       |
+| Symptom                                       | Likely cause                                                                       |
+| --------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Caddy logs `challenge failed`                 | DNS doesn't point at the server yet, or port 80 is blocked                         |
+| `stratcom` stays `unhealthy`                  | `docker compose logs stratcom`. An invalid env var is reported by name at start-up |
+| System check says `Cross-origin isolated: no` | A proxy in front of Caddy (such as a CDN) is stripping the COOP/COEP headers       |
+| WebGL2 error in the browser                   | Hardware acceleration is disabled in the browser, or the drivers are too old       |
