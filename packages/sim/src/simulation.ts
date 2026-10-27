@@ -317,15 +317,13 @@ export class Simulation {
       this.spatial.forNeighbours(xi, zi, (j) => {
         if (j === i) return;
         const reach = ri + (types[w.type[j] ?? 0]?.radius ?? 1);
-        let dx = xi - (w.x[j] ?? 0);
-        let dz = zi - (w.z[j] ?? 0);
+        const dx = xi - (w.x[j] ?? 0);
+        const dz = zi - (w.z[j] ?? 0);
         const d2 = dx * dx + dz * dz;
         if (d2 >= reach * reach) return;
         if (d2 === 0) {
           // Exactly stacked: split along x, with opposite signs for the pair.
-          dx = i < j ? 1 : -1;
-          dz = 0;
-          px += dx * reach * 0.5;
+          px += (i < j ? 1 : -1) * reach * 0.5;
           return;
         }
         const d = Math.sqrt(d2);

@@ -69,7 +69,7 @@ interpolated units on screen.
 - Deviation: the det-check is an e2e spec plus `?detcheck` page flag instead of a separate
   `tools/det-check` package. It needs no extra tooling.
 
-## M2: Camera, terrain, selection, movement
+## 🟡 M2: Camera, terrain, selection, movement (implemented, exit criteria pending)
 
 **Goal:** it feels like an RTS.
 
@@ -82,6 +82,18 @@ interpolated units on screen.
 
 **Exit:** select and move 500 units across hilly terrain. Zooming out to the full map switches
 smoothly to icons.
+
+**Status:** implemented and covered by `e2e/rts.spec.ts` (box select, move, zoom to icons) and
+sim tests (500 units cross the hills without entering blocked cells). Deviations:
+
+- **Flow fields instead of per-unit A\*.** One Dijkstra distance field (bucket queue) per move
+  command and movement class, shared by the whole group, so ordering 500 units costs one
+  search, not 500. It is the "flow fields for large group moves" step from PLAN.md §4.4, taken
+  first because it is simpler and cheaper for RTS group orders. Units that have line of sight
+  to the goal walk straight at it.
+- **Splat texturing is baked into vertex colours** (height and slope) until real texture
+  assets exist (content track).
+- Still to do by eye: feel-tuning of camera speeds on real hardware, and a GPU fps check.
 
 ## M3: Factions, units and game flow
 

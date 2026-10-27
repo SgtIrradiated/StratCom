@@ -38,15 +38,16 @@ Enforced by `no-restricted-imports` in `eslint.config.js`. An arrow means "may i
 | `apps/server`                        | three, preact                                                                                      |
 | `packages/*`                         | `@stratcom/client`, `@stratcom/server`                                                             |
 
-## Runtime: current (M1)
+## Runtime: current (M2)
 
 ```
 Main thread                                      Sim Worker (apps/client/src/sim)
 ┌──────────────────────────────────────┐ commands ┌───────────────────────────────┐
 │ main.ts                              │ ───────▶ │ simWorker.ts                  │
 │  ├─ sim/SimClient                    │          │  └─ @stratcom/sim Simulation  │
-│  ├─ render/SceneRenderer + UnitLayer │ ◀─────── │     fixed 20 Hz, step()       │
-│  └─ bench/StatsPanel (?bench=N)      │ snapshots│     writeSnapshot() → transfer│
+│  ├─ render/ Terrain+Unit+Icon layers │ ◀─────── │     fixed 20 Hz, step()       │
+│  ├─ input/ InputController+Selection │ snapshots│
+│  └─ bench/StatsPanel (?bench=N)      │          │     writeSnapshot() → transfer│
 └──────────────────────────────────────┘ (3 recycled buffer sets, transferred)
 ```
 

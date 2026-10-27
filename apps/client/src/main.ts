@@ -12,7 +12,10 @@ import type { SnapshotBuffers } from "@stratcom/sim";
 import { blockingProblems, detectCapabilities } from "./boot/capabilities";
 import { StatsPanel, parseBenchCount } from "./bench/stats";
 import { SimClient } from "./sim/SimClient";
+import { InputController } from "./input/InputController";
+import { Selection } from "./input/selection";
 import { createSceneRenderer } from "./render/SceneRenderer";
+import type { UnitVisual } from "./render/types";
 import { renderBootError, renderBootPanel } from "./ui/bootPanel";
 
 /**
@@ -27,8 +30,14 @@ import { renderBootError, renderBootPanel } from "./ui/bootPanel";
 /** Demo unit count when `?bench=N` is absent. */
 const DEMO_UNITS = 200;
 
-/** Box sizes for the placeholder unit types, index-aligned with `TEST_UNIT_TYPES`. */
-const UNIT_VISUALS = [{ size: [4, 3, 6] as const }, { size: [7, 4, 10] as const }];
+/** Slot of the local (human) player. */
+const LOCAL_SLOT = 0;
+
+/** Placeholder looks, index-aligned with `TEST_UNIT_TYPES`. */
+const UNIT_VISUALS: readonly UnitVisual[] = [
+  { size: [4, 3, 6], radius: TEST_UNIT_TYPES[0].radius, icon: "circle" },
+  { size: [7, 4, 10], radius: TEST_UNIT_TYPES[1].radius, icon: "diamond" },
+];
 
 const canvas = document.querySelector<HTMLCanvasElement>("#viewport");
 const ui = document.querySelector<HTMLElement>("#ui");
@@ -59,12 +68,12 @@ function start(canvas: HTMLCanvasElement, ui: HTMLElement): void {
   if (bench !== undefined) document.body.append(stats.element);
 
   const renderer = createSceneRenderer(canvas, {
-    unitVisuals: UNIT_VISUALS.slice(0, TEST_UNIT_TYPES.length),
+    unitVisuals: UNIT_VISUALS,
     playerColors: setup.players.map((p) => p.color),
     maxUnits: setup.initialUnits.length + 4096,
-    mapSize: setup.map.width,
+    terrain: setup.terrain,
   });
-  renderer.lookAt(setup.map.width / 2, setup.map.height / 2, 1400);
+  renderer.camera.zoomAt(0, 0, 0.4);
 
   // The latest snapshot is kept until the next one arrives, then handed back to the worker.
   let current: SnapshotBuffers | undefined;
@@ -88,6 +97,20 @@ function start(canvas: HTMLCanvasElement, ui: HTMLElement): void {
     true,
   );
 
+  const selection = new Selection();
+  const input = new InputController({
+    canvas,
+    renderer,
+    selection,
+    localSlot: LOCAL_SLOT,
+    current: () => (current ? { snapshot: current, alpha: alphaNow() } : undefined),
+    command(cmd) {
+      sim.sendCommands([cmd]);
+    },
+  });
+  // Snapshot N holds the state at the end of tick N; blend prev→current over one tick.
+  const alphaNow = (): number => Math.min((performance.now() - receivedAt) / TICK_MS, 1);
+
   const resize = (): void => {
     renderer.resize(canvas.clientWidth, canvas.clientHeight, window.devicePixelRatio);
   };
@@ -95,13 +118,15 @@ function start(canvas: HTMLCanvasElement, ui: HTMLElement): void {
   observer.observe(canvas);
   resize();
 
+  let lastTime = performance.now();
   let frame = requestAnimationFrame(function loop(time) {
+    input.update(Math.min((time - lastTime) / 1000, 0.1));
+    lastTime = time;
     if (current) {
-      // Snapshot N holds the state at the end of tick N; draw it one tick behind real time,
-      // blending prev→current over the tick interval.
-      const alpha = Math.min((performance.now() - receivedAt) / TICK_MS, 1);
-      renderer.setUnits(current, alpha);
+      renderer.setUnits(current, alphaNow(), selection.ids);
       document.documentElement.dataset["boot"] = "ready";
+      document.documentElement.dataset["selected"] = String(selection.ids.size);
+      document.documentElement.dataset["zoom"] = renderer.strategicBlend.toFixed(2);
     }
     renderer.render(time);
     stats.frame(time, renderer.drawCalls);
@@ -112,6 +137,7 @@ function start(canvas: HTMLCanvasElement, ui: HTMLElement): void {
   import.meta.hot?.dispose(() => {
     cancelAnimationFrame(frame);
     observer.disconnect();
+    input.dispose();
     sim.dispose();
     renderer.dispose();
     stats.element.remove();

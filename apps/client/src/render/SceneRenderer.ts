@@ -3,116 +3,104 @@ import {
   Color,
   DirectionalLight,
   Fog,
-  GridHelper,
   HemisphereLight,
-  Mesh,
-  MeshStandardMaterial,
-  PerspectiveCamera,
-  PlaneGeometry,
   Scene,
   WebGLRenderer,
-  type Material,
 } from "three";
-import type { SnapshotBuffers } from "@stratcom/sim";
+import { terrainWidth, type SnapshotBuffers } from "@stratcom/sim";
+import { RtsCamera } from "./RtsCamera";
+import { TerrainLayer } from "./TerrainLayer";
 import { UnitLayer } from "./UnitLayer";
 import type { GameRenderer, SceneOptions } from "./types";
 
-/** Dusty wasteland palette for the M0 scene. Post-processing and real grading arrive in M7. */
+/** Dusty wasteland palette. Post-processing and real grading arrive in M7. */
 const PALETTE = {
   sky: "#cdb892",
-  ground: "#7d6a4a",
-  grid: "#3b3020",
   hemiSky: "#e6d7b0",
   hemiGround: "#4a3b28",
   sun: "#ffd9a0",
 } as const;
 
+/** Camera distance (m) where models start fading to icons, and where only icons remain. */
+const STRATEGIC_START = 900;
+const STRATEGIC_END = 1300;
+
 /**
- * M1 scene: a flat test plain plus the {@link UnitLayer}. It is the seed of the layered
- * renderer from docs/PLAN.md §4.3; TerrainLayer and IconLayer join it in M2 while the
- * {@link GameRenderer} interface stays put.
+ * The layered renderer from docs/PLAN.md §4.3: {@link TerrainLayer}, {@link UnitLayer}
+ * (with its icon and selection sub-layers) and the {@link RtsCamera}. FxLayer arrives later.
  */
 export function createSceneRenderer(
   canvas: HTMLCanvasElement,
   options: SceneOptions,
 ): GameRenderer {
-  const mapSize = options.mapSize;
   const renderer = new WebGLRenderer({
     canvas,
     antialias: true,
     powerPreference: "high-performance",
   });
-
-  // Every GPU resource we create is registered here and released in dispose().
-  const resources = new Set<Disposable>();
-  const track = <T extends Disposable>(resource: T): T => {
-    resources.add(resource);
-    return resource;
-  };
   renderer.toneMapping = ACESFilmicToneMapping;
 
   const scene = new Scene();
   scene.background = new Color(PALETTE.sky);
-  scene.fog = new Fog(PALETTE.sky, 600, 2400);
+  const mapSize = terrainWidth(options.terrain);
+  scene.fog = new Fog(PALETTE.sky, mapSize * 0.6, mapSize * 2.2);
 
-  // Classic RTS three-quarter view. The real RTS camera with strategic zoom arrives in M2.
-  const camera = new PerspectiveCamera(45, 1, 1, 6000);
-  camera.position.set(mapSize / 2, 700, mapSize / 2 + 500);
-  camera.lookAt(mapSize / 2, 0, mapSize / 2);
-
-  scene.add(new HemisphereLight(PALETTE.hemiSky, PALETTE.hemiGround, 1.2));
-  const sun = new DirectionalLight(PALETTE.sun, 2.2);
-  sun.position.set(-120, 160, 80);
+  const rts = new RtsCamera(options.terrain);
+  scene.add(new HemisphereLight(PALETTE.hemiSky, PALETTE.hemiGround, 0.8));
+  const sun = new DirectionalLight(PALETTE.sun, 1.7);
+  sun.position.set(-0.5, 0.8, 0.4);
   scene.add(sun);
 
-  const ground = new Mesh(
-    track(new PlaneGeometry(mapSize, mapSize)),
-    track(new MeshStandardMaterial({ color: PALETTE.ground, roughness: 1 })),
+  const terrain = new TerrainLayer(options.terrain);
+  scene.add(terrain.group);
+  const units = new UnitLayer(
+    options.unitVisuals,
+    options.playerColors,
+    options.maxUnits,
+    options.terrain,
   );
-  ground.rotation.x = -Math.PI / 2;
-  ground.position.set(mapSize / 2, 0, mapSize / 2);
-  scene.add(ground);
-
-  const grid = new GridHelper(mapSize, mapSize / 16, PALETTE.grid, PALETTE.grid);
-  track(grid.geometry);
-  const gridMaterial = track(grid.material as Material);
-  gridMaterial.transparent = true;
-  gridMaterial.opacity = 0.25;
-  grid.position.set(mapSize / 2, 0.02, mapSize / 2);
-  scene.add(grid);
-
-  const units = new UnitLayer(options.unitVisuals, options.playerColors, options.maxUnits);
   scene.add(units.group);
 
+  let width = 1;
+  let height = 1;
+  let blend = 0;
+
   return {
-    resize(width, height, devicePixelRatio) {
+    camera: rts,
+    resize(w, h, devicePixelRatio) {
+      width = w;
+      height = Math.max(h, 1);
       renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-      renderer.setSize(width, height, false);
-      camera.aspect = width / Math.max(height, 1);
-      camera.updateProjectionMatrix();
+      renderer.setSize(w, h, false);
+      rts.setAspect(width / height);
     },
-    setUnits(snapshot: SnapshotBuffers, alpha: number) {
-      units.update(snapshot, alpha);
+    setUnits(snapshot: SnapshotBuffers, alpha, selected) {
+      const t = (rts.distance - STRATEGIC_START) / (STRATEGIC_END - STRATEGIC_START);
+      blend = Math.min(Math.max(t, 0), 1);
+      units.update(snapshot, alpha, selected, rts.camera, blend);
     },
-    lookAt(x, z, height) {
-      camera.position.set(x, height, z + height * 0.7);
-      camera.lookAt(x, 0, z);
+    projectUnits(snapshot, alpha, out) {
+      units.project(snapshot, alpha, rts.camera, width, height, out);
     },
+    groundAt: (x, y) => rts.groundAt(x, y),
     render() {
-      renderer.render(scene, camera);
+      // The sun follows the camera target so shadows-to-be stay coherent; direction is fixed.
+      sun.target.position.set(rts.target.x, 0, rts.target.z);
+      sun.position.set(rts.target.x - 700, 450, rts.target.z + 300);
+      sun.target.updateMatrixWorld();
+      terrain.update(rts.camera.position);
+      renderer.render(scene, rts.camera);
     },
     get drawCalls() {
       return renderer.info.render.calls;
     },
+    get strategicBlend() {
+      return blend;
+    },
     dispose() {
       units.dispose();
-      for (const resource of resources) resource.dispose();
-      resources.clear();
+      terrain.dispose();
       renderer.dispose();
     },
   };
-}
-
-interface Disposable {
-  dispose(): void;
 }

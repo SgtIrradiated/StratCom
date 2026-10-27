@@ -15,7 +15,10 @@ multiplayer, replays, and desync detection all rely on this property.
 | `ecs/` — `World` (SoA, generational ids)         | ✅ M1 (ADR-0005)                        |
 | `Simulation` — `step`, `stateHash`, snapshots    | ✅ M1: command ingest + movement only   |
 | `detcheck` — cross-runtime determinism scenario  | ✅ M1 (`e2e/determinism.spec.ts`)       |
-| Pathfinding, economy, combat, fog                | M2+ (see `docs/ROADMAP.md`)             |
+| `terrain` — heightmap, height sampling, raycast  | ✅ M2                                   |
+| `navigation` — nav grids, flow fields, LOS       | ✅ M2 (one field per move command)      |
+| `spatialGrid` + separation steering              | ✅ M2                                   |
+| Economy, combat, fog                             | M4+ (see `docs/ROADMAP.md`)             |
 
 ## Rules (enforced by ESLint and `tsconfig.json`)
 

@@ -88,3 +88,10 @@ body {
   border: 1px solid currentcolor;
   pointer-events: none;
 }
+
+.select-box {
+  position: fixed;
+  border: 1px solid #7dff9a;
+  background: rgb(125 255 154 / 12%);
+  pointer-events: none;
+}
