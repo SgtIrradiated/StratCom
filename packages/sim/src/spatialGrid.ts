@@ -73,4 +73,26 @@ export class SpatialGrid {
       }
     }
   }
+
+  /**
+   * Calls `visit(slot)` once for every entity in the buckets that overlap the square around
+   * (`x`, `z`) with half-size `radius`, row by row, then in ascending slot order within a
+   * bucket. Any radius works. The visited set is a superset of the entities within `radius`:
+   * callers test the exact distance.
+   */
+  forEachNear(x: number, z: number, radius: number, visit: (slot: number) => void): void {
+    const cs = this.cellSize;
+    const c0 = Math.max(Math.floor((x - radius) / cs), 0);
+    const c1 = Math.min(Math.floor((x + radius) / cs), this.cols - 1);
+    const r0 = Math.max(Math.floor((z - radius) / cs), 0);
+    const r1 = Math.min(Math.floor((z + radius) / cs), this.rows - 1);
+    for (let r = r0; r <= r1; r++) {
+      for (let c = c0; c <= c1; c++) {
+        const b = r * this.cols + c;
+        for (let k = this.start[b] ?? 0; k < (this.start[b + 1] ?? 0); k++) {
+          visit(this.items[k] ?? 0);
+        }
+      }
+    }
+  }
 }

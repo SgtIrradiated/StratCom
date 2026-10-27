@@ -68,6 +68,14 @@ the pinned determinism scenario can use a tiny fixed ruleset.
    reclaimers strip debris, then each player's income, storage and stall factor are settled
    and every job advances by `step × stall factor`.
 
+Each step is a system in `packages/sim/src/systems/` (`commands`, `movement`, `separation`,
+`work`); `Simulation` only wires them up and runs them in order. They share a `SimContext`
+(`context.ts`): the world, the setup, navigation (`nav.ts`), the per-unit order queues
+(`orders.ts`) and geometry helpers. A system that keeps per-entity-slot state registers it
+with the context as a `SlotState`, which clears it whenever a slot is reused or freed and
+mixes it into the state hash, so neither can be forgotten. Rule and setup types are in
+`rules.ts`.
+
 Structures mark their footprint in an occupancy grid and in every navigation grid, so units
 path around them. `placement.ts` holds the placement rules as pure functions, which the
 client's placement ghost reuses.

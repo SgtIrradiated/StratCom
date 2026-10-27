@@ -66,21 +66,14 @@ export function createSnapshotBuffers(capacity: number): SnapshotBuffers {
   };
 }
 
-/** The `ArrayBuffer`s backing a snapshot, for use as a `postMessage` transfer list. */
+/**
+ * The `ArrayBuffer`s backing a snapshot, for use as a `postMessage` transfer list: every
+ * typed-array field, found at run time, so a new array is transferred without being listed.
+ */
 export function snapshotTransferList(s: SnapshotBuffers): ArrayBuffer[] {
-  return [
-    s.ids,
-    s.kinds,
-    s.types,
-    s.owners,
-    s.prevX,
-    s.prevZ,
-    s.x,
-    s.z,
-    s.heading,
-    s.progress,
-    s.economy,
-  ].map((a) => a.buffer as ArrayBuffer);
+  return Object.values(s)
+    .filter((v): v is ArrayBufferView => ArrayBuffer.isView(v))
+    .map((a) => a.buffer as ArrayBuffer);
 }
 
 /** One player's economy as of this snapshot. */
