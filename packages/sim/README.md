@@ -13,7 +13,7 @@ multiplayer, replays, and desync detection all rely on this property.
 | `TICK_RATE` / `TICK_MS`                          | ✅ M0 (20 Hz, ADR-0007)                 |
 | `math/trig`, `math/vec` — `sin`, `cos`, `atan2`  | ✅ M1, polynomial, ~1e-9 accurate       |
 | `ecs/` — `World` (SoA, generational ids)         | ✅ M1 (ADR-0005)                        |
-| `Simulation` — `step`, `stateHash`, snapshots    | ✅ M1; order queues and work in M4      |
+| `Simulation` — `step`, `stateHash`, snapshots    | ✅ M1; systems and `SimContext` in M5   |
 | `detcheck` — cross-runtime determinism scenario  | ✅ M1 (`e2e/determinism.spec.ts`)       |
 | `terrain` — heightmap, height sampling, raycast  | ✅ M2                                   |
 | `navigation` — nav grids, flow fields, LOS       | ✅ M2 (one field per move command)      |
@@ -24,7 +24,10 @@ multiplayer, replays, and desync detection all rely on this property.
 | `economy` — flow economy, stall factor           | ✅ M4 (ADR-0010)                        |
 | `placement` — snapping, footprints, deposits     | ✅ M4, shared with the client ghost     |
 | Construction, factories, reclaim, features       | ✅ M4 (ADR-0010)                        |
-| Combat, fog                                      | M5 (see `docs/ROADMAP.md`)              |
+| `systems/combat`, `projectiles` — weapons        | ✅ M5 (ADR-0012)                        |
+| `systems/health` — damage, death, wrecks, repair | ✅ M5                                   |
+| `systems/victory` — defeat and match result      | ✅ M5 (assassination, annihilation)     |
+| `systems/visibility` — fog of war per team       | ✅ M5, weapons need sight               |
 
 ## Rules (enforced by ESLint and `tsconfig.json`)
 
@@ -58,7 +61,12 @@ sim.step(commands); // exactly one tick; commands are validated, never trusted
 sim.stateHash(); // 32-bit hash of the full state (desync detection)
 sim.writeSnapshot(buffers); // fills reusable typed arrays for the renderer
 sim.economy(slot); // stored, capacity, income, spending, demand, stall factor
+sim.matchStatus(); // each player's kills, losses and defeat; whether a team has won
 ```
+
+Inside, `Simulation` runs one system per step of the tick (`src/systems/`), sharing a
+`SimContext`. A system that keeps per-entity state registers it as a `SlotState`, so it is
+cleared when a slot is reused and included in the state hash (ADR-0012).
 
 `createSkirmishSetup` turns lobby settings into a `MatchSetup`: it generates the map with
 flattened start plateaus and deposit pads, places deposits and debris, and spawns each

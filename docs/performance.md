@@ -18,13 +18,14 @@ webkit`) that are often missing under WSL.
 
 ## Baselines
 
-| Date            | Machine / runtime                                    | Scenario                                                                          | Result                                                                                    |
-| --------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| 2026-10-27      | WSL2, Node 20.19, Vitest (V8), one run               | 2,000 units, 400 ticks                                                            | tick avg **0.29 ms**, worst 15.6 ms (JIT warm-up on the first ticks)                      |
-| 2026-10-27      | Headless Chromium in the sim worker (`/?bench=2000`) | 2,000 units, 8 s                                                                  | tick avg **0.37 ms**, max 2.4 ms                                                          |
-| 2026-10-27 (M2) | WSL2, Node 20.19, 720 warm ticks                     | 2,000 units, hills, flow fields, separation, 2 players re-ordering every 40 ticks | tick avg **1.18 ms**, worst 11 ms (the tick where both players' flow fields are computed) |
-| 2026-10-27 (M3) | WSL2, Node 20.19 (Vitest), 720 warm ticks            | Same as M2 (separation now handles structures)                                    | tick avg **1.08 ms**, worst 14 ms: no regression                                          |
-| 2026-10-27 (M4) | WSL2, Node 20.19 (Vitest), 720 warm ticks, 3 runs    | Same as M2, with order queues and the economy step                                | tick avg **1.25–1.36 ms** (M3 build, same runs: 1.11–1.20 ms); the economy step: 0.06 ms  |
+| Date            | Machine / runtime                                    | Scenario                                                                                              | Result                                                                                                                     |
+| --------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| 2026-10-27      | WSL2, Node 20.19, Vitest (V8), one run               | 2,000 units, 400 ticks                                                                                | tick avg **0.29 ms**, worst 15.6 ms (JIT warm-up on the first ticks)                                                       |
+| 2026-10-27      | Headless Chromium in the sim worker (`/?bench=2000`) | 2,000 units, 8 s                                                                                      | tick avg **0.37 ms**, max 2.4 ms                                                                                           |
+| 2026-10-27 (M2) | WSL2, Node 20.19, 720 warm ticks                     | 2,000 units, hills, flow fields, separation, 2 players re-ordering every 40 ticks                     | tick avg **1.18 ms**, worst 11 ms (the tick where both players' flow fields are computed)                                  |
+| 2026-10-27 (M3) | WSL2, Node 20.19 (Vitest), 720 warm ticks            | Same as M2 (separation now handles structures)                                                        | tick avg **1.08 ms**, worst 14 ms: no regression                                                                           |
+| 2026-10-27 (M4) | WSL2, Node 20.19 (Vitest), 720 warm ticks, 3 runs    | Same as M2, with order queues and the economy step                                                    | tick avg **1.25–1.36 ms** (M3 build, same runs: 1.11–1.20 ms); the economy step: 0.06 ms                                   |
+| 2026-10-27 (M5) | CachyOS, Node 24.22 (Vitest), 720 warm ticks, 2 runs | Same as M2, but every test unit is armed (beam or cannon) and about 1,000 of 2,000 die; fog of war on | tick avg **0.84–0.86 ms**, worst 8 ms. Same machine, M4 code: 0.97–1.01 ms (movement only). Vision: about 0.05 ms per tick |
 
 ### Match start-up (M3)
 
@@ -50,7 +51,10 @@ result in the table above.
 - The sim's costly systems so far are flow-field searches (one per move order and movement
   class) and separation. The M4 economy step is one pass over the entities (about 0.06 ms
   at 2,000 units); placing or removing a structure makes the affected flow fields recompute
-  once. Targeting and projectiles (M5) will add more. Re-measure at each milestone.
+  once. Re-measure at each milestone.
+- M5 combat stays cheap because targeting is staggered (a weapon without a target searches
+  every 5th tick) on a 64 m grid, and vision stamps cached discs every 4th tick, once per
+  team, cell and radius. Damage is one sorted pass over the units hit that tick.
 - Order queues are read length-first, because indexing past the end of an empty JS array is
   a slow path in V8. That fix, together with checking the structure-occupancy grid only when
   a move is blocked, took the first M4 build from about 1.6 ms to 1.3 ms per tick.
