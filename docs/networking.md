@@ -35,8 +35,18 @@ state on every peer.
 - Commands within a turn are applied in a canonical order (by slot, then submission order),
   chosen by the server.
 
-Current commands: `move { slot, units, to }` and `stop { slot, units }`. `queue`, attack,
-build, reclaim and the rest arrive with their milestones.
+Current commands (M4): `move { units, to }`, `stop { units }`,
+`build { units, unitType, at, facing }`, `reclaim { units, target }`,
+`assist { units, target }`, `produce { units, unitType, count }` and `rally { units, to }`,
+each with the issuing `slot`. `move`, `build`, `reclaim` and `assist` take `queue: true` to
+append to the order queue instead of replacing it. Attack and the rest arrive with their
+milestones.
+
+- Build sites travel as the requested point; every peer snaps them with the same pure
+  `placement.ts` rules, and placement is re-checked when the builder arrives, so a site that
+  became blocked fails identically everywhere.
+- Commands are never rejected for affordability: the flow economy charges as work happens
+  (ADR-0010), so there is no "can I afford it" race between peers.
 
 ## Match setup (from M3)
 

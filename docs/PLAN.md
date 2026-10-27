@@ -9,10 +9,11 @@ This document plans the **codebase foundation**: architecture, technology choice
 layout, and conventions. Maps, art, and audio come later. The foundation has to let them drop
 in without structural changes.
 
-> **Status:** M0–M3 are implemented (see the roadmap for exit criteria still pending). The
+> **Status:** M0–M4 are implemented (see the roadmap for exit criteria still pending). The
 > code sketches in §6 were written before implementation; the real definitions live in
-> `packages/data/src/schema` and `packages/sim/src`, and
-> [ADR-0009](adr/0009-ruleset-compiler-and-hash.md) records how the ruleset is compiled. The
+> `packages/data/src/schema` and `packages/sim/src`.
+> [ADR-0009](adr/0009-ruleset-compiler-and-hash.md) records how the ruleset is compiled and
+> [ADR-0010](adr/0010-flow-economy-and-construction.md) how the economy works. The
 > milestone plan lives in
 > [`ROADMAP.md`](ROADMAP.md), and settled decisions are listed in [§12](#12-decisions).
 > Architecture Decision Records in [`adr/`](adr/README.md) take precedence over this document

@@ -5,22 +5,26 @@ _Beyond All Reason_: huge battles, a flow economy, strategic zoom. It is set in 
 retro-futuristic wasteland, where the **Atomic Directorate** emerges from its Shelters to
 reclaim the surface and the **Scrapborn Clans** intend to strip them for parts.
 
-> **Status: pre-alpha.** Milestones M0–M3 are implemented: a deterministic simulation in a
-> worker, an RTS camera with strategic zoom, two factions with placeholder units, and the full
-> menu flow from the main menu through faction select into a skirmish. Economy and
-> construction (M4) are next. See the [roadmap](docs/ROADMAP.md).
+> **Status: pre-alpha.** Milestones M0–M4 are implemented: a deterministic simulation in a
+> worker, an RTS camera with strategic zoom, two factions with placeholder units, the full
+> menu flow into a skirmish, and a Supreme Commander-style flow economy with construction,
+> factories and reclaim. Combat and victory (M5) are next. See the [roadmap](docs/ROADMAP.md).
 
 ## What you can do today
 
 Start `pnpm dev`, choose **Skirmish**, pick a map and the AI's faction, choose your faction
 and colour, and deploy. You get your commander and a small starting force on a flattened base
-site. Your units can be selected and moved; the HUD is skinned for your faction. Combat,
-building and the AI's behaviour arrive in M4–M6.
+site with salvage deposits behind it. Build extractors on the deposits and generators for
+power, put up a factory and queue units, and send engineers to reclaim debris. Salvage and
+power flow in and drain as you build; overspend and everything slows together (the HUD shows
+a STALL warning). Combat and the AI's behaviour arrive in M5–M6.
 
 | Input                       | Action                                                 |
 | --------------------------- | ------------------------------------------------------ |
 | Left click / drag           | Select (Shift adds; double-click selects that type)    |
-| Right click                 | Move                                                   |
+| Right click                 | Move; reclaim debris or assist with builders; rally    |
+| Shift + right click         | Queue the order                                        |
+| Build panel, then click     | Place a structure (Shift keeps placing, R rotates)     |
 | X                           | Stop                                                   |
 | WASD / arrows / screen edge | Pan                                                    |
 | Q / E, middle-drag          | Rotate                                                 |

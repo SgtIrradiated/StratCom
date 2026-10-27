@@ -32,9 +32,13 @@ setting. TypeScript pnpm monorepo. Read `docs/architecture.md` and `docs/ROADMAP
 - Content (units, weapons, factions, maps): `packages/data`, see `docs/content-authoring.md`.
   It compiles to `RULESET` with numeric ids and a hash (ADR-0009).
 - Match setup from lobby settings: `createSkirmishSetup` in `packages/sim/src/skirmish.ts`.
+- Economy, construction, factories, reclaim: the work step in `packages/sim/src/simulation.ts`
+  (ADR-0010). Placement rules are pure functions in `placement.ts`, shared with the client
+  ghost (`apps/client/src/input/orders.ts`).
 - Client flow: `apps/client/src/screens` (Preact, `router.ts` state machine), one running
   match = `game/GameSession.ts`. Faction skins: `styles/terminal.css`, driven by theme data.
-- e2e tests wait on `<html data-boot>`, `data-screen`, `data-selected`, `data-zoom`.
+- e2e tests wait on `<html data-boot>`, `data-screen`, `data-selected`, `data-zoom`,
+  `data-units`, `data-placing`, `data-ghost`.
 
 ## Determinism tests
 
