@@ -10,6 +10,7 @@ import {
 } from "three";
 import { EntityKind, sampleHeight, type SnapshotBuffers, type Terrain } from "@stratcom/sim";
 import { HealthBars } from "./HealthBars";
+import { commitInstances } from "./instancing";
 import { IconLayer } from "./IconLayer";
 import { SelectionRings } from "./SelectionRings";
 import type { FeatureVisual, UnitVisual, ViewSnapshot } from "./types";
@@ -183,10 +184,8 @@ export class UnitLayer {
     }
 
     this.meshes.forEach((mesh, t) => {
-      mesh.count = counts[t] ?? 0;
+      commitInstances(mesh, counts[t] ?? 0);
       mesh.visible = drawModels;
-      mesh.instanceMatrix.needsUpdate = true;
-      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     });
     // Models fade out as icons fade in; transparency is only enabled mid-fade so the
     // common cases keep opaque, depth-sorted rendering.

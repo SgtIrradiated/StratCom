@@ -8,6 +8,7 @@ import {
   Vector3,
   type PerspectiveCamera,
 } from "three";
+import { commitInstances } from "./instancing";
 
 /** Bar height in metres, and its gap above the unit's box. */
 const BAR_HEIGHT = 0.6;
@@ -82,9 +83,7 @@ export class HealthBars {
   /** Finishes the frame; `opacity` of 0 hides the bars. */
   end(visible: boolean): void {
     this.mesh.visible = visible && this.n > 0;
-    this.mesh.count = this.n;
-    this.mesh.instanceMatrix.needsUpdate = true;
-    if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
+    commitInstances(this.mesh, this.n);
   }
 
   dispose(): void {

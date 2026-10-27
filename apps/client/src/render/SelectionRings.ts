@@ -1,4 +1,5 @@
 import { DynamicDrawUsage, InstancedMesh, MeshBasicMaterial, RingGeometry } from "three";
+import { commitInstances } from "./instancing";
 
 /** Flat rings drawn under selected units. */
 export class SelectionRings {
@@ -56,8 +57,7 @@ export class SelectionRings {
   end(opacity: number): void {
     this.mesh.visible = opacity > 0 && this.n > 0;
     this.material.opacity = opacity;
-    this.mesh.count = this.n;
-    this.mesh.instanceMatrix.needsUpdate = true;
+    commitInstances(this.mesh, this.n);
   }
 
   dispose(): void {

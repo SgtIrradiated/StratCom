@@ -12,6 +12,7 @@ import {
   MeshBasicMaterial,
 } from "three";
 import { sampleHeight, type SimEvent, type SnapshotBuffers, type Terrain } from "@stratcom/sim";
+import { commitInstances } from "./instancing";
 import type { WeaponKind } from "./types";
 
 /** How long a beam or flame stays on screen, in milliseconds. */
@@ -126,9 +127,7 @@ export class CombatLayer {
       col[i * 3 + 1] = c?.g ?? 1;
       col[i * 3 + 2] = c?.b ?? 1;
     }
-    this.projectiles.count = n;
-    this.projectiles.instanceMatrix.needsUpdate = true;
-    if (this.projectiles.instanceColor) this.projectiles.instanceColor.needsUpdate = true;
+    commitInstances(this.projectiles, n);
 
     this.shots = this.shots.filter((s) => timeMs - s.at < SHOT_MS);
     let k = 0;

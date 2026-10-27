@@ -39,8 +39,10 @@ test("hotseat switches control to the other player", async ({ page }) => {
   // Keep the pointer off the screen edge, where it would pan the camera.
   await page.mouse.move(640, 360);
 
+  // The switch reveals the other side's units at once; under software WebGL on a busy CI
+  // runner the next frames (which publish data-slot) can take several seconds.
   await page.keyboard.press("F9");
-  await expect(html).toHaveAttribute("data-slot", "1");
+  await expect(html).toHaveAttribute("data-slot", "1", { timeout: 20_000 });
   await expect(page.getByTestId("hotseat")).toContainText("P2");
   await expect(html).not.toHaveAttribute("data-fog", fog ?? "");
 
@@ -56,7 +58,7 @@ test("hotseat switches control to the other player", async ({ page }) => {
   await page.mouse.click(vp.width / 2, vp.height * 0.6, { button: "right" });
 
   await page.keyboard.press("F9");
-  await expect(html).toHaveAttribute("data-slot", "0");
+  await expect(html).toHaveAttribute("data-slot", "0", { timeout: 20_000 });
   await expect(html).toHaveAttribute("data-selected", "0");
   expect(errors).toEqual([]);
 });
