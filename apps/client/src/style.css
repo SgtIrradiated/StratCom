@@ -72,3 +72,19 @@ body {
 .boot-panel.error {
   color: #ff5a4c;
 }
+
+.stats-panel {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  font:
+    0.8rem/1.4 ui-monospace,
+    monospace;
+  white-space: pre;
+  color: #4cff7a;
+  background: rgb(8 12 8 / 82%);
+  border: 1px solid currentcolor;
+  pointer-events: none;
+}

@@ -1,12 +1,9 @@
 import {
   ACESFilmicToneMapping,
-  BoxGeometry,
   Color,
-  CylinderGeometry,
   DirectionalLight,
   Fog,
   GridHelper,
-  Group,
   HemisphereLight,
   Mesh,
   MeshStandardMaterial,
@@ -16,7 +13,9 @@ import {
   WebGLRenderer,
   type Material,
 } from "three";
-import type { GameRenderer, PlaceholderUnit, SceneOptions } from "./types";
+import type { SnapshotBuffers } from "@stratcom/sim";
+import { UnitLayer } from "./UnitLayer";
+import type { GameRenderer, SceneOptions } from "./types";
 
 /** Dusty wasteland palette for the M0 scene. Post-processing and real grading arrive in M7. */
 const PALETTE = {
@@ -28,17 +27,16 @@ const PALETTE = {
   sun: "#ffd9a0",
 } as const;
 
-const MAP_SIZE = 1024;
-
 /**
- * M0 scene: a flat test plain with one placeholder per faction. It is the seed of the
- * layered renderer from docs/PLAN.md §4.3 (TerrainLayer, UnitLayer, …), which replaces
- * the body of this class in M1–M2 while keeping the {@link GameRenderer} interface.
+ * M1 scene: a flat test plain plus the {@link UnitLayer}. It is the seed of the layered
+ * renderer from docs/PLAN.md §4.3; TerrainLayer and IconLayer join it in M2 while the
+ * {@link GameRenderer} interface stays put.
  */
 export function createSceneRenderer(
   canvas: HTMLCanvasElement,
   options: SceneOptions,
 ): GameRenderer {
+  const mapSize = options.mapSize;
   const renderer = new WebGLRenderer({
     canvas,
     antialias: true,
@@ -55,12 +53,12 @@ export function createSceneRenderer(
 
   const scene = new Scene();
   scene.background = new Color(PALETTE.sky);
-  scene.fog = new Fog(PALETTE.sky, 200, 700);
+  scene.fog = new Fog(PALETTE.sky, 600, 2400);
 
   // Classic RTS three-quarter view. The real RTS camera with strategic zoom arrives in M2.
-  const camera = new PerspectiveCamera(45, 1, 1, 3000);
-  camera.position.set(0, 90, 120);
-  camera.lookAt(0, 0, 0);
+  const camera = new PerspectiveCamera(45, 1, 1, 6000);
+  camera.position.set(mapSize / 2, 700, mapSize / 2 + 500);
+  camera.lookAt(mapSize / 2, 0, mapSize / 2);
 
   scene.add(new HemisphereLight(PALETTE.hemiSky, PALETTE.hemiGround, 1.2));
   const sun = new DirectionalLight(PALETTE.sun, 2.2);
@@ -68,25 +66,23 @@ export function createSceneRenderer(
   scene.add(sun);
 
   const ground = new Mesh(
-    track(new PlaneGeometry(MAP_SIZE, MAP_SIZE)),
+    track(new PlaneGeometry(mapSize, mapSize)),
     track(new MeshStandardMaterial({ color: PALETTE.ground, roughness: 1 })),
   );
   ground.rotation.x = -Math.PI / 2;
+  ground.position.set(mapSize / 2, 0, mapSize / 2);
   scene.add(ground);
 
-  const grid = new GridHelper(MAP_SIZE, MAP_SIZE / 16, PALETTE.grid, PALETTE.grid);
+  const grid = new GridHelper(mapSize, mapSize / 16, PALETTE.grid, PALETTE.grid);
   track(grid.geometry);
   const gridMaterial = track(grid.material as Material);
   gridMaterial.transparent = true;
   gridMaterial.opacity = 0.25;
-  grid.position.y = 0.02;
+  grid.position.set(mapSize / 2, 0.02, mapSize / 2);
   scene.add(grid);
 
-  const turrets = options.placeholders.map((unit) => {
-    const { body, turret } = createPlaceholder(unit, track);
-    scene.add(body);
-    return turret;
-  });
+  const units = new UnitLayer(options.unitVisuals, options.playerColors, options.maxUnits);
+  scene.add(units.group);
 
   return {
     resize(width, height, devicePixelRatio) {
@@ -95,14 +91,21 @@ export function createSceneRenderer(
       camera.aspect = width / Math.max(height, 1);
       camera.updateProjectionMatrix();
     },
-    render(timeMs) {
-      // Presentation-only idle animation; it never feeds back into game state.
-      turrets.forEach((turret, i) => {
-        turret.rotation.y = timeMs * 0.0004 * (i % 2 === 0 ? 1 : -1);
-      });
+    setUnits(snapshot: SnapshotBuffers, alpha: number) {
+      units.update(snapshot, alpha);
+    },
+    lookAt(x, z, height) {
+      camera.position.set(x, height, z + height * 0.7);
+      camera.lookAt(x, 0, z);
+    },
+    render() {
       renderer.render(scene, camera);
     },
+    get drawCalls() {
+      return renderer.info.render.calls;
+    },
     dispose() {
+      units.dispose();
       for (const resource of resources) resource.dispose();
       resources.clear();
       renderer.dispose();
@@ -112,41 +115,4 @@ export function createSceneRenderer(
 
 interface Disposable {
   dispose(): void;
-}
-
-/** A box hull with a rotating turret and a glowing accent, coloured by faction. */
-function createPlaceholder(
-  unit: PlaceholderUnit,
-  track: <T extends Disposable>(resource: T) => T,
-): { body: Group; turret: Group } {
-  const hull = track(
-    new MeshStandardMaterial({ color: unit.baseColor, roughness: 0.8, metalness: 0.2 }),
-  );
-  const glow = track(
-    new MeshStandardMaterial({
-      color: unit.accentColor,
-      emissive: unit.accentColor,
-      emissiveIntensity: 1.5,
-    }),
-  );
-
-  const body = new Group();
-  body.position.set(unit.x, 0, unit.z);
-
-  const chassis = new Mesh(track(new BoxGeometry(12, 5, 16)), hull);
-  chassis.position.y = 2.5;
-  body.add(chassis);
-
-  const turret = new Group();
-  turret.position.y = 5;
-  const dome = new Mesh(track(new CylinderGeometry(4, 5, 4, 12)), hull);
-  dome.position.y = 2;
-  const barrel = new Mesh(track(new BoxGeometry(1.2, 1.2, 10)), hull);
-  barrel.position.set(0, 2.5, 6);
-  const beacon = new Mesh(track(new CylinderGeometry(0.8, 0.8, 1.5, 8)), glow);
-  beacon.position.y = 4.75;
-  turret.add(dome, barrel, beacon);
-  body.add(turret);
-
-  return { body, turret };
 }

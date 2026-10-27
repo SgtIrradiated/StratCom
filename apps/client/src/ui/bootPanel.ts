@@ -10,10 +10,7 @@ export function renderBootPanel(
   info: { caps: Capabilities; tickRate: number; factions: readonly FactionDef[] },
 ): void {
   const panel = el("section", "boot-panel");
-  panel.append(
-    el("h1", undefined, "STRATCOM"),
-    el("div", "muted", "PRE-ALPHA // M0 FOUNDATION BUILD"),
-  );
+  panel.append(el("h1", undefined, "STRATCOM"), el("div", "muted", "PRE-ALPHA // M1 ENGINE CORE"));
 
   const status = el("ul");
   status.append(

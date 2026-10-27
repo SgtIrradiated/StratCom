@@ -4,8 +4,8 @@ const PORT = 4173;
 
 /**
  * End-to-end smoke tests against the *production* build served by the real server.
- * Run `pnpm build` first (CI does this). Firefox and WebKit projects are added in M1
- * together with the cross-browser determinism check.
+ * Run `pnpm build` first (CI does this). Firefox and WebKit run only the cross-browser
+ * determinism check; the WebGL smoke tests need the SwiftShader flags, which are Chromium-only.
  */
 export default defineConfig({
   testDir: "./e2e",
@@ -24,6 +24,16 @@ export default defineConfig({
         // Headless CI machines have no GPU: force the SwiftShader software WebGL path.
         launchOptions: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] },
       },
+    },
+    {
+      name: "firefox",
+      testMatch: "determinism.spec.ts",
+      use: { ...devices["Desktop Firefox"] },
+    },
+    {
+      name: "webkit",
+      testMatch: "determinism.spec.ts",
+      use: { ...devices["Desktop Safari"] },
     },
   ],
   webServer: {

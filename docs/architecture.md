@@ -10,7 +10,7 @@ structure changes.
 apps/client      Browser client (Vite + three.js). Deployable.
 apps/server      Node server (Fastify). Deployable. Serves the client build.
 packages/shared  Dependency-free utilities (assert, Brand).
-packages/sim     Deterministic simulation. No DOM, no Node, no renderer.
+packages/sim     Deterministic simulation: ECS world, Simulation, math. No DOM/Node/renderer.
 packages/data    Content definitions + zod schemas (factions today).
 ```
 
@@ -38,17 +38,24 @@ Enforced by `no-restricted-imports` in `eslint.config.js`. An arrow means "may i
 | `apps/server`                        | three, preact                                                                                      |
 | `packages/*`                         | `@stratcom/client`, `@stratcom/server`                                                             |
 
-## Runtime: current (M0)
+## Runtime: current (M1)
 
 ```
-Browser                                         Server (Node)
-┌──────────────────────────────────────┐        ┌───────────────────────────┐
-│ main.ts                              │  HTTP  │ Fastify                   │
-│  ├─ boot/capabilities (WebGL2 probe) │◀──────▶│  ├─ GET /healthz          │
-│  ├─ ui/bootPanel (DOM)               │        │  └─ static client/dist    │
-│  └─ render/SceneRenderer (three.js)  │        │     + COOP/COEP + caching │
-└──────────────────────────────────────┘        └───────────────────────────┘
+Main thread                                      Sim Worker (apps/client/src/sim)
+┌──────────────────────────────────────┐ commands ┌───────────────────────────────┐
+│ main.ts                              │ ───────▶ │ simWorker.ts                  │
+│  ├─ sim/SimClient                    │          │  └─ @stratcom/sim Simulation  │
+│  ├─ render/SceneRenderer + UnitLayer │ ◀─────── │     fixed 20 Hz, step()       │
+│  └─ bench/StatsPanel (?bench=N)      │ snapshots│     writeSnapshot() → transfer│
+└──────────────────────────────────────┘ (3 recycled buffer sets, transferred)
 ```
+
+The renderer interpolates each unit between `prev` and current position in a single snapshot
+(`alpha` = time since the snapshot arrived ÷ tick length). Snapshot buffers are returned to the
+worker with a `recycle` message once the next snapshot replaces them; the worker skips posting
+(and keeps simulating) when all buffers are out.
+
+Server (unchanged since M0): Fastify serves `client/dist` with COOP/COEP, plus `/healthz`.
 
 ## Runtime: target
 

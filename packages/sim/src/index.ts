@@ -1,13 +1,22 @@
 /**
  * @stratcom/sim — the deterministic game simulation.
  *
- * M0 ships only the deterministic math foundation. The ECS world, systems and
- * snapshot API described in docs/PLAN.md §4.4 and §6.2 are built in M1.
+ * `Simulation` is the public entry point (docs/PLAN.md §6.2): construct it from a
+ * `MatchSetup`, call `step(commands)` once per tick, and read `stateHash()` and
+ * `writeSnapshot()`. Deterministic math lives in `@stratcom/sim/math`.
  */
 export * from "./math/index";
-
-/** Fixed simulation rate in ticks per second (ADR-0007). */
-export const TICK_RATE = 20;
-
-/** Duration of one simulation tick in milliseconds. */
-export const TICK_MS = 1000 / TICK_RATE;
+export type { PlayerCommand, Vec2 } from "./commands";
+export { MAX_ENTITIES, World, entityGeneration, entityIndex, type EntityId } from "./ecs/index";
+export { TEST_UNIT_TYPES, createTestMatch, scriptedCommands } from "./scenario";
+export {
+  Simulation,
+  TICK_MS,
+  TICK_RATE,
+  type InitialUnit,
+  type MatchSetup,
+  type PlayerSetup,
+  type UnitTypeStats,
+} from "./simulation";
+export { DET_TICKS, runDetScenario } from "./detcheck";
+export { createSnapshotBuffers, snapshotTransferList, type SnapshotBuffers } from "./snapshot";

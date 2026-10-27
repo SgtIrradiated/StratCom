@@ -1,6 +1,6 @@
 # StratCom Roadmap
 
-_Last updated: 2026-10-05, after M0._
+_Last updated: 2026-10-27, M1 implemented (exit criteria partly pending)._
 
 This roadmap reflects the decisions from [PLAN.md §12](PLAN.md#12-decisions):
 
@@ -41,7 +41,7 @@ built locally, because no Docker engine was available; the CI `docker` job build
 
 ---
 
-## M1: Simulation core and render bridge
+## 🟡 M1: Simulation core and render bridge (implemented, exit criteria pending)
 
 **Goal:** the engine heartbeat. A deterministic simulation in a worker drives thousands of
 interpolated units on screen.
@@ -59,6 +59,15 @@ interpolated units on screen.
 
 **Exit:** 2,000 placeholder units move deterministically at 60 fps. Hashes match across all
 4 runtimes. The sim stays under 25 ms per tick.
+
+**Status:**
+
+- ✅ Sim under 25 ms per tick: 0.29 ms average in Node and 0.37 ms in the Chromium worker at 2,000 units ([performance.md](performance.md)).
+- ⏳ 60 fps: needs a `/?bench=2000` run on a machine with a GPU.
+- ⏳ Hashes across 4 runtimes: Node and Chromium verified locally (identical); Firefox and WebKit run in
+  CI (`e2e/determinism.spec.ts`) and have not yet been run.
+- Deviation: the det-check is an e2e spec plus `?detcheck` page flag instead of a separate
+  `tools/det-check` package. It needs no extra tooling.
 
 ## M2: Camera, terrain, selection, movement
 

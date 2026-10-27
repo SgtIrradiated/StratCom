@@ -6,5 +6,8 @@ export default defineConfig({
   test: {
     include: ["packages/*/src/**/*.test.ts", "apps/*/src/**/*.test.ts"],
     environment: "node",
+    // Cold runs on WSL-mounted disks can push `beforeAll` (which imports and builds the
+    // Fastify app) past the 10 s default. Warm hooks take well under a second.
+    hookTimeout: 30_000,
   },
 });

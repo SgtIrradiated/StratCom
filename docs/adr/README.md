@@ -10,7 +10,7 @@ old one, and update the old one's status line.
 | [0002](0002-deterministic-float-simulation.md) | Deterministic floating-point simulation     | Accepted                        |
 | [0003](0003-lockstep-networking.md)            | Deterministic lockstep networking           | Accepted (implementation in M8) |
 | [0004](0004-threejs-renderer-boundary.md)      | three.js behind a renderer boundary         | Accepted                        |
-| [0005](0005-custom-soa-ecs.md)                 | Custom structure-of-arrays ECS              | Accepted (implementation in M1) |
+| [0005](0005-custom-soa-ecs.md)                 | Custom structure-of-arrays ECS              | Accepted (implemented in M1)    |
 | [0006](0006-data-driven-content.md)            | Data-driven content validated with zod      | Accepted                        |
 | [0007](0007-simulation-tick-rate.md)           | 20 Hz simulation tick, 2-tick network turns | Accepted                        |
 | [0008](0008-license.md)                        | AGPL-3.0-or-later for code                  | Accepted                        |
