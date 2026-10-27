@@ -17,8 +17,13 @@ export interface InputHost {
   readonly canvas: HTMLCanvasElement;
   readonly renderer: GameRenderer;
   readonly selection: Selection;
-  /** Slot of the local player; only that player's units can be selected or commanded. */
+  /**
+   * Slot of the local player; only that player's units can be selected or commanded. Read on
+   * every use, so hotseat mode can change it.
+   */
   readonly localSlot: number;
+  /** Team per player slot (indexed by slot), to tell enemies from allies. */
+  readonly teams: readonly (number | undefined)[];
   readonly ruleset: SimRuleset;
   readonly terrain: Terrain;
   readonly deposits: readonly Vec2[];
@@ -289,6 +294,16 @@ export class InputController {
     }
   }
 
+  /**
+   * Gives the selection the context order for a right click on open ground at `ground` (the
+   * minimap uses this): move there, or set the rally point.
+   */
+  orderAt(ground: Vec2, queue: boolean): void {
+    const cur = this.host.current();
+    if (!cur || this.host.selection.ids.size === 0) return;
+    this.issueContext(cur.snapshot, -1, ground, queue);
+  }
+
   private contextOrder(e: PointerEvent): void {
     if (this.host.selection.ids.size === 0) return;
     const proj = this.project();
@@ -297,16 +312,26 @@ export class InputController {
     const p = this.ndc(at);
     const ground = this.host.renderer.groundAt(p.x, p.y);
     const hovered = nearestUnit(proj.screen, proj.snapshot.count, at.x, at.y, CLICK_RADIUS_PX);
+    this.issueContext(proj.snapshot, hovered, ground, e.shiftKey);
+  }
+
+  private issueContext(
+    snapshot: SnapshotBuffers,
+    hovered: number,
+    ground: Vec2 | undefined,
+    queue: boolean,
+  ): void {
     const commands = contextCommands(
       {
         ruleset: this.host.ruleset,
         localSlot: this.host.localSlot,
-        snapshot: proj.snapshot,
+        teams: this.host.teams,
+        snapshot,
         selected: this.host.selection.ids,
       },
       hovered,
       ground,
-      e.shiftKey,
+      queue,
     );
     for (const cmd of commands) this.host.command(cmd);
   }

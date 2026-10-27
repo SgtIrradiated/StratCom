@@ -18,6 +18,8 @@ import {
 export interface OrderContext {
   ruleset: SimRuleset;
   localSlot: number;
+  /** Team per player slot (indexed by slot); empty slots are undefined. */
+  teams: readonly (number | undefined)[];
   snapshot: SnapshotBuffers;
   selected: ReadonlySet<number>;
 }
@@ -30,18 +32,21 @@ export interface SelectionRoles {
   movers: number[];
   /** Structures that produce units. */
   factories: number[];
+  /** Units and structures with weapons (also listed above if they move, build or produce). */
+  armed: number[];
 }
 
 /** Splits the selection into builders, other mobile units and factories. */
-export function selectionRoles(ctx: OrderContext): SelectionRoles {
+export function selectionRoles(ctx: Omit<OrderContext, "teams">): SelectionRoles {
   const s = ctx.snapshot;
-  const roles: SelectionRoles = { builders: [], movers: [], factories: [] };
+  const roles: SelectionRoles = { builders: [], movers: [], factories: [], armed: [] };
   for (let i = 0; i < s.count; i++) {
     const id = s.ids[i] ?? 0;
     if (!ctx.selected.has(id) || s.owners[i] !== ctx.localSlot) continue;
     if (s.kinds[i] !== EntityKind.unit || (s.progress[i] ?? 0) < 1) continue;
     const st = ctx.ruleset.units[s.types[i] ?? 0];
     if (!st) continue;
+    if (st.weapons.length > 0) roles.armed.push(id);
     if (st.mobile) (st.buildRate > 0 ? roles.builders : roles.movers).push(id);
     else if (st.buildRate > 0) roles.factories.push(id);
   }
@@ -52,8 +57,9 @@ export function selectionRoles(ctx: OrderContext): SelectionRoles {
  * The orders for a right click. `hovered` is the snapshot index under the
  * cursor, or -1; `ground` is the ground point under it.
  *
- * - On debris, builders reclaim it.
- * - On one of your own unfinished units, factories or builders, builders assist it.
+ * - On a hostile unit, armed units attack it; the rest move there.
+ * - On debris or a wreck, builders reclaim it.
+ * - On one of your own unfinished, damaged or building units, builders assist (or repair) it.
  * - Everything else that can move goes to `ground`; factories set their rally point there.
  */
 export function contextCommands(
@@ -64,11 +70,17 @@ export function contextCommands(
 ): PlayerCommand[] {
   const s = ctx.snapshot;
   const slot = ctx.localSlot;
-  const { builders, movers, factories } = selectionRoles(ctx);
+  const { builders, movers, factories, armed } = selectionRoles(ctx);
   const commands: PlayerCommand[] = [];
   let walkers = [...movers, ...builders];
 
-  if (hovered >= 0 && hovered < s.count && builders.length > 0) {
+  const onUnit = hovered >= 0 && hovered < s.count && s.kinds[hovered] === EntityKind.unit;
+  if (onUnit && armed.length > 0 && isHostile(ctx, s.owners[hovered] ?? 0)) {
+    const target = s.ids[hovered] ?? 0;
+    commands.push({ t: "attack", slot, units: armed, target, queue });
+    const attacking = new Set(armed);
+    walkers = walkers.filter((id) => !attacking.has(id));
+  } else if (hovered >= 0 && hovered < s.count && builders.length > 0) {
     const target = s.ids[hovered] ?? 0;
     const others = builders.filter((id) => id !== target);
     if (s.kinds[hovered] === EntityKind.feature) {
@@ -76,7 +88,8 @@ export function contextCommands(
       walkers = movers;
     } else if (s.owners[hovered] === slot && others.length > 0) {
       const st = ctx.ruleset.units[s.types[hovered] ?? 0];
-      if ((s.progress[hovered] ?? 0) < 1 || (st?.buildRate ?? 0) > 0) {
+      const damaged = (s.health[hovered] ?? 1) < 1;
+      if ((s.progress[hovered] ?? 0) < 1 || damaged || (st?.buildRate ?? 0) > 0) {
         commands.push({ t: "assist", slot, units: others, target, queue });
         walkers = movers.filter((id) => id !== target);
       }
@@ -89,6 +102,13 @@ export function contextCommands(
     commands.push({ t: "rally", slot, units: factories, to: { x: ground.x, z: ground.z } });
   }
   return commands;
+}
+
+/** True if units of player `owner` are enemies of the local player. */
+export function isHostile(ctx: Pick<OrderContext, "localSlot" | "teams">, owner: number): boolean {
+  const mine = ctx.teams[ctx.localSlot];
+  const theirs = ctx.teams[owner];
+  return mine !== undefined && theirs !== undefined && mine !== theirs;
 }
 
 /** Terrain cells covered by structures in the snapshot (the client's view of occupancy). */

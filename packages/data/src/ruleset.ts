@@ -59,6 +59,10 @@ export interface CompiledUnit {
   /** Footprint in cells; 0 × 0 for mobile units. */
   footprint: { x: number; z: number };
   weapons: readonly number[];
+  /** Feature left when it is destroyed (a generated wreck), or -1 for none. */
+  wreckFeature: number;
+  /** True for the commander role: losing every commander defeats a player. */
+  commander: boolean;
   builds: readonly number[];
   /** Build power; 0 for units that cannot build. */
   buildRate: number;
@@ -87,7 +91,10 @@ export interface CompiledFaction {
   roster: readonly number[];
 }
 
-/** A neutral feature (debris, later wrecks) with its numeric id. */
+/**
+ * A neutral feature with its numeric id: authored debris, then one generated wreck per unit
+ * that leaves one (id `<unit id>__wreck`, see {@link WRECK_SUFFIX}).
+ */
 export interface CompiledFeature {
   index: number;
   id: string;
@@ -111,6 +118,12 @@ export interface CompiledRuleset {
   factions: readonly CompiledFaction[];
   features: readonly CompiledFeature[];
 }
+
+/** Suffix of the feature id generated for a unit's wreck. */
+export const WRECK_SUFFIX = "__wreck";
+
+/** Colour of every generated wreck. */
+const WRECK_COLOR = "#3b3732";
 
 /** Raw content for {@link compileRuleset}. Everything is validated, so `unknown` is fine. */
 export interface RulesetSource {
@@ -189,6 +202,25 @@ export function compileRuleset(source: RulesetSource): CompiledRuleset {
     });
     return map;
   };
+  // Wrecks are generated features, appended after the authored ones so their ids are stable.
+  const wreckOf = new Map<string, number>();
+  for (const u of units) {
+    const salvage = u.wreck === false ? 0 : u.cost.salvage * u.wreck.salvageFraction;
+    if (salvage <= 0) continue;
+    wreckOf.set(u.id, features.length);
+    features.push({
+      id: `${u.id}${WRECK_SUFFIX}`,
+      name: `${u.name} (wreck)`,
+      description: `What is left of a ${u.name}. Reclaim it for salvage.`,
+      salvage,
+      radius: Math.min(u.radius, 16),
+      visual: {
+        size: [u.visual.size[0], u.visual.size[1] * 0.5, u.visual.size[2]],
+        color: WRECK_COLOR,
+      },
+    });
+  }
+
   const moveIx = index(moves, "movement class");
   const factionIx = index(factions, "faction");
   const weaponIx = index(weapons, "weapon");
@@ -236,6 +268,8 @@ export function compileRuleset(source: RulesetSource): CompiledRuleset {
       turnRate: u.movement?.turnRate ?? 0,
       footprint: { x: u.footprint?.x ?? 0, z: u.footprint?.z ?? 0 },
       weapons: u.weapons.map((w) => ref(weaponIx, w, "weapon", from)),
+      wreckFeature: wreckOf.get(u.id) ?? -1,
+      commander: u.role === "commander",
       builds,
       buildRate: u.buildRate,
       buildRange: u.buildRange,

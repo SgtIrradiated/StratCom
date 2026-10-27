@@ -1,20 +1,38 @@
 import type { PlayerCommand } from "./commands";
 import { Prng } from "./math/prng";
 import { buildNavGrid, cellAt } from "./navigation";
-import type { MatchSetup, SimRuleset, UnitTypeStats } from "./simulation";
+import type { FeatureTypeStats, MatchSetup, SimRuleset, UnitTypeStats, WeaponStats } from "./rules";
 import { generateTerrain, terrainDepth, terrainWidth } from "./terrain";
 
 /** Ground units cross slopes up to 0.6 (about 31°). */
 export const TEST_MOVEMENT_CLASSES = [{ maxSlope: 0.6 }] as const;
 
-/** A mobile test unit that cannot build and produces nothing. */
-function testUnit(speed: number, turnRate: number, radius: number): UnitTypeStats {
+/** Test weapons: a short instant-hit beam and a slower area-damage cannon. */
+export const TEST_WEAPONS: readonly WeaponStats[] = [
+  { damage: 12, range: 40, reload: 0.5, areaRadius: 0, projectileSpeed: 0 },
+  { damage: 60, range: 90, reload: 2, areaRadius: 6, projectileSpeed: 60 },
+];
+
+/** A mobile armed test unit that cannot build and produces nothing. */
+function testUnit(
+  speed: number,
+  turnRate: number,
+  radius: number,
+  health: number,
+  vision: number,
+  weapon: number,
+): UnitTypeStats {
   return {
     mobile: true,
     movementClass: 0,
     radius,
     speed,
     turnRate,
+    health,
+    vision,
+    weapons: [weapon],
+    wreckFeature: 0,
+    commander: false,
     cost: { salvage: 0, power: 0, buildTime: 1 },
     footprint: { x: 0, z: 0 },
     placement: "ground",
@@ -25,8 +43,17 @@ function testUnit(speed: number, turnRate: number, radius: number): UnitTypeStat
   };
 }
 
-/** Placeholder unit types: a quick scout and a slow heavy. */
-export const TEST_UNIT_TYPES: readonly UnitTypeStats[] = [testUnit(9, 4, 2), testUnit(5, 2, 3.5)];
+/**
+ * Placeholder unit types: a quick scout with a beam, and a slow heavy whose cannon outranges
+ * its own sight, so it needs a spotter for its longest shots.
+ */
+export const TEST_UNIT_TYPES: readonly UnitTypeStats[] = [
+  testUnit(9, 4, 2, 120, 140, 0),
+  testUnit(5, 2, 3.5, 400, 70, 1),
+];
+
+/** The wreck both test unit types leave. */
+export const TEST_FEATURES: readonly FeatureTypeStats[] = [{ radius: 3, salvage: 20 }];
 
 /**
  * A minimal two-type ruleset for tests, benchmarks and the determinism check. It stays
@@ -35,7 +62,8 @@ export const TEST_UNIT_TYPES: readonly UnitTypeStats[] = [testUnit(9, 4, 2), tes
 export const TEST_RULESET: SimRuleset = {
   movementClasses: TEST_MOVEMENT_CLASSES,
   units: TEST_UNIT_TYPES,
-  features: [],
+  features: TEST_FEATURES,
+  weapons: TEST_WEAPONS,
 };
 
 /**

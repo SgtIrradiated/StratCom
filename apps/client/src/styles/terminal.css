@@ -555,6 +555,11 @@ select {
   color: var(--dim);
 }
 
+.hud-hotseat {
+  color: var(--accent);
+  letter-spacing: 0.08em;
+}
+
 .hud-clock {
   margin-left: auto;
   font-family: var(--font-display);
@@ -576,6 +581,16 @@ select {
 .res.power::before {
   content: "⚡ ";
   color: var(--accent);
+}
+
+.hud-minimap {
+  position: absolute;
+  top: 4.4rem;
+  left: 0.6rem;
+  width: 200px;
+  height: 200px;
+  padding: 0;
+  cursor: crosshair;
 }
 
 .hud-selection,

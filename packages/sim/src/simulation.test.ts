@@ -134,6 +134,7 @@ describe("Simulation movement", () => {
           },
         ],
         features: [],
+        weapons: base.ruleset.weapons,
       },
       initialUnits: [
         { slot: 0, type: 2, x: 500, z: 500 },

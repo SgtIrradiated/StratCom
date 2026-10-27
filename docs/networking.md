@@ -35,10 +35,11 @@ state on every peer.
 - Commands within a turn are applied in a canonical order (by slot, then submission order),
   chosen by the server.
 
-Current commands (M4): `move { units, to }`, `stop { units }`,
+Current commands (M5): `move { units, to }`, `stop { units }`,
 `build { units, unitType, at, facing }`, `reclaim { units, target }`,
-`assist { units, target }`, `produce { units, unitType, count }` and `rally { units, to }`,
-each with the issuing `slot`. `move`, `build`, `reclaim` and `assist` take `queue: true` to
+`assist { units, target }`, `attack { units, target }`, `produce { units, unitType, count }`
+and `rally { units, to }`, each with the issuing `slot`. `move`, `build`, `reclaim`,
+`assist` and `attack` take `queue: true` to
 append to the order queue instead of replacing it. Attack and the rest arrive with their
 milestones.
 

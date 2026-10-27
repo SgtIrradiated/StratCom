@@ -10,8 +10,9 @@ structure changes.
 apps/client      Browser client (Vite + three.js). Deployable.
 apps/server      Node server (Fastify). Deployable. Serves the client build.
 packages/shared  Dependency-free utilities (assert, Brand).
-packages/sim     Deterministic simulation: ECS world, Simulation (movement, construction,
-                 economy), placement rules, skirmish setup, math. No DOM/Node/renderer.
+packages/sim     Deterministic simulation: ECS world, Simulation (systems for movement,
+                 construction, economy, combat, vision, victory), placement rules, skirmish
+                 setup, math. No DOM/Node/renderer.
 packages/data    Content: zod schemas, faction content packs, features, maps, ruleset compiler.
 ```
 
@@ -54,25 +55,40 @@ Skirmish config ────┴─▶ createSkirmishSetup() ─▶ MatchSetup �
 The sim reads rules through the structural `SimRuleset` interface (ADR-0009), so tests and
 the pinned determinism scenario can use a tiny fixed ruleset.
 
-## Simulation tick (M4)
+## Simulation tick (M5)
 
-`Simulation.step(commands)` runs, in order (docs/PLAN.md §4.4, ADR-0010):
+`Simulation.step(commands)` runs, in order (docs/PLAN.md §4.4, ADR-0010, ADR-0012):
 
 1. **Commands**: validated against ownership and the ruleset, then turned into per-unit order
-   queues (move, build, reclaim, assist), factory production queues or rally points.
+   queues (move, build, reclaim, assist, attack), factory production queues or rally points.
 2. **Movement**: each unit works on the head of its queue. Move orders follow a flow field
-   shared by the command's group; work orders walk into build range of their target through
-   a small cache of shared fields.
+   shared by the command's group; work orders walk into build range of their target, and
+   attack orders into weapon range, through a small cache of shared fields.
 3. **Separation**: mobile units push apart and out of structures; features take no part.
-4. **Work and economy**: builders place sites and add build power to jobs, factories produce,
-   reclaimers strip debris, then each player's income, storage and stall factor are settled
-   and every job advances by `step × stall factor`.
+4. **Combat**: projectiles in flight land; each armed unit aims each weapon (staggered target
+   search on a 64 m grid, only at what its team sees) and fires. Damage is queued.
+5. **Work and economy**: builders place sites and add build power to jobs (construction,
+   repair), factories produce, reclaimers strip debris and wrecks, then each player's income,
+   storage and stall factor are settled and every job advances by `step × stall factor`.
+6. **Health**: queued damage is applied in slot order; units at 0 hp die and leave wrecks.
+7. **Victory**: players without a commander (or without anything) are defeated and their
+   units destroyed; the match ends when the standing players share one team.
+8. **Visibility**: every 4th tick, each team's vision grid is recomputed.
+
+Each step is a system in `packages/sim/src/systems/` (`commands`, `movement`, `separation`,
+`combat`, `work`, `health`, `victory`, `visibility`); `Simulation` only wires them up and
+runs them in order. Projectiles live in their own pool (`projectiles.ts`), not the ECS. They share a `SimContext`
+(`context.ts`): the world, the setup, navigation (`nav.ts`), the per-unit order queues
+(`orders.ts`) and geometry helpers. A system that keeps per-entity-slot state registers it
+with the context as a `SlotState`, which clears it whenever a slot is reused or freed and
+mixes it into the state hash, so neither can be forgotten. Rule and setup types are in
+`rules.ts`.
 
 Structures mark their footprint in an occupancy grid and in every navigation grid, so units
 path around them. `placement.ts` holds the placement rules as pure functions, which the
 client's placement ghost reuses.
 
-## Runtime: current (M4)
+## Runtime: current (M5)
 
 ```
 Main thread                                         Sim Worker (apps/client/src/sim)
@@ -88,8 +104,16 @@ Main thread                                         Sim Worker (apps/client/src/
 └─────────────────────────────────────────┘
 ```
 
-Snapshots carry, per entity, kind (unit or feature), owner, type, position, heading and
-build progress, plus every player's economy figures and the factory queues the HUD shows.
+Snapshots carry, per entity, kind (unit or feature), owner, type, position, heading, build
+progress, health and which teams see it; plus projectiles, every team's fog grid, every
+player's economy figures and standing (`match`), the factory queues the HUD shows, and the
+events (shots, deaths) since the previous snapshot.
+
+`GameSession` passes each snapshot through `FogView` (`game/FogView.ts`), which keeps what
+the local team may see (and remembers enemy structures out of sight). The renderer, the
+input layer and the minimap all work from that view; the HUD reads the full snapshot for the
+player's own economy and production. `?hotseat` lets one person switch the commanded player
+(and the view) with F9.
 
 Each `GameSession` creates a fresh canvas and releases its WebGL context on dispose, so a
 second match never reuses a lost context. `?bench=N` starts a session directly, skipping

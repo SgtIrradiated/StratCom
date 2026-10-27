@@ -1,5 +1,5 @@
 import { RULESET, rulesetUnit } from "@stratcom/data";
-import { createSnapshotBuffers } from "@stratcom/sim";
+import { createSnapshotBuffers, type MatchStatus } from "@stratcom/sim";
 import { describe, expect, it } from "vitest";
 import {
   buildMenu,
@@ -8,6 +8,8 @@ import {
   formatClock,
   formatRate,
   formatSpending,
+  matchOutcome,
+  playerResults,
   summarizeSelection,
 } from "./hudModel";
 
@@ -80,5 +82,41 @@ describe("HUD model", () => {
   it("finds a unit by owner and type", () => {
     expect(findUnit(snap, 1, 2)).toBe(3);
     expect(findUnit(snap, 1, 5)).toBe(-1);
+  });
+});
+
+describe("match outcome", () => {
+  const status = (over: boolean, winnerTeam: number, defeated: boolean[]): MatchStatus => ({
+    over,
+    winnerTeam,
+    players: defeated.map((d, slot) => ({
+      slot,
+      team: slot % 2,
+      defeated: d,
+      defeatedAt: d ? 10 : -1,
+      kills: slot,
+      losses: 1,
+    })),
+  });
+
+  it("plays on until the local player falls or the match is decided", () => {
+    expect(matchOutcome(status(false, -1, [false, false]), 0)).toBe(undefined);
+    expect(matchOutcome(status(false, -1, [false, true, false, false]), 0)).toBe(undefined);
+    expect(matchOutcome(status(false, -1, [true, false, false, false]), 0)).toBe("defeat");
+  });
+
+  it("is victory for the winning team, defeat for the rest, and a draw with no winner", () => {
+    expect(matchOutcome(status(true, 0, [false, true]), 0)).toBe("victory");
+    expect(matchOutcome(status(true, 0, [false, true]), 1)).toBe("defeat");
+    expect(matchOutcome(status(true, -1, [true, true]), 0)).toBe("draw");
+  });
+
+  it("lists every player's record in slot order", () => {
+    const s = status(true, 0, [false, true]);
+    s.players.reverse();
+    expect(playerResults(s)).toEqual([
+      { slot: 0, kills: 0, losses: 1, defeated: false },
+      { slot: 1, kills: 1, losses: 1, defeated: true },
+    ]);
   });
 });

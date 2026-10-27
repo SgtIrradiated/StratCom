@@ -15,6 +15,7 @@ interface Entry {
   owner?: number;
   kind?: number;
   progress?: number;
+  health?: number;
   x?: number;
   z?: number;
 }
@@ -27,6 +28,7 @@ function snapshot(entries: readonly Entry[]) {
     s.owners[i] = e.owner ?? 0;
     s.kinds[i] = e.kind ?? EntityKind.unit;
     s.progress[i] = e.progress ?? 1;
+    s.health[i] = e.health ?? 1;
     s.x[i] = e.x ?? 0;
     s.z[i] = e.z ?? 0;
   });
@@ -41,10 +43,14 @@ const snap = snapshot([
   { id: 4, type: 0, kind: EntityKind.feature, owner: NEUTRAL_OWNER },
   { id: 5, type: reactor.index, progress: 0.3 },
   { id: 6, type: warden.index, owner: 1 },
+  { id: 7, type: warden.index, health: 0.4 },
+  { id: 8, type: warden.index, owner: 2 },
 ]);
+/** Slot 0 (local) and slot 2 are allies; slot 1 is the enemy. */
 const ctx = (selected: number[]) => ({
   ruleset: RULESET,
   localSlot: 0,
+  teams: [0, 1, 0],
   snapshot: snap,
   selected: new Set(selected),
 });
@@ -56,6 +62,7 @@ describe("selection roles", () => {
       builders: [1],
       movers: [2],
       factories: [3],
+      armed: [1, 2],
     });
   });
 });
@@ -87,7 +94,23 @@ describe("context commands", () => {
       queue: false,
     });
     expect(contextCommands(ctx([1]), 1, ground, false)[0]?.t).toBe("move");
-    expect(contextCommands(ctx([1]), 5, ground, false)[0]?.t).toBe("move");
+    expect(contextCommands(ctx([1]), 7, ground, false)[0]?.t).toBe("move");
+  });
+
+  it("repairs damaged own units", () => {
+    expect(contextCommands(ctx([1]), 6, ground, false)).toEqual([
+      { t: "assist", slot: 0, units: [1], target: 7, queue: false },
+    ]);
+  });
+
+  it("attacks hostile units with everything armed, and never allies", () => {
+    expect(contextCommands(ctx([1, 2, 3]), 5, ground, true)).toEqual([
+      { t: "attack", slot: 0, units: [1, 2], target: 6, queue: true },
+      { t: "rally", slot: 0, units: [3], to: ground },
+    ]);
+    expect(contextCommands(ctx([2]), 7, ground, false)).toEqual([
+      { t: "move", slot: 0, units: [2], to: ground, queue: false },
+    ]);
   });
 });
 

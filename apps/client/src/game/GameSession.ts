@@ -1,17 +1,27 @@
 import {
   EntityKind,
   TICK_MS,
+  denseTeams,
   setupCapacity,
   type MatchSetup,
   type PlayerCommand,
   type SnapshotBuffers,
+  type Terrain,
 } from "@stratcom/sim";
 import type { StatsPanel } from "../bench/stats";
 import { InputController } from "../input/InputController";
 import { Selection } from "../input/selection";
 import { createSceneRenderer } from "../render/SceneRenderer";
-import type { FeatureVisual, GameRenderer, UnitVisual } from "../render/types";
+import type {
+  FeatureVisual,
+  GameRenderer,
+  GroundPoint,
+  UnitVisual,
+  ViewSnapshot,
+  WeaponKind,
+} from "../render/types";
 import { SimClient } from "../sim/SimClient";
+import { FogView } from "./FogView";
 import { findUnit } from "./hudModel";
 
 /** Everything a {@link GameSession} needs to run a match locally. */
@@ -21,10 +31,14 @@ export interface SessionOptions {
   unitVisuals: readonly UnitVisual[];
   /** Placeholder looks, indexed by feature type id. */
   featureVisuals?: readonly FeatureVisual[];
+  /** Kind of each weapon id, for its effects. */
+  weaponKinds?: readonly WeaponKind[];
   /** Slot of the local (human) player. */
   localSlot: number;
   /** Drive the match with the built-in scripted commands (demo and `?bench=N`). */
   scripted?: boolean;
+  /** Fog of war for the local player's team; defaults to on. Off shows the whole map. */
+  fog?: boolean;
   /** Selection-ring colour; the local faction's accent. */
   selectionColor?: string;
   /** Unit type the camera starts on, normally the local commander. */
@@ -54,6 +68,11 @@ export class GameSession {
   private readonly input: InputController;
   private readonly observer: ResizeObserver;
   private current: SnapshotBuffers | undefined;
+  /** {@link current} as the local team may see it. */
+  private seen: ViewSnapshot | undefined;
+  private readonly fog: FogView;
+  private readonly teamOf: Uint8Array;
+  private activeSlot: number;
   private receivedAt = 0;
   private frame = 0;
   private isPaused = false;
@@ -67,6 +86,7 @@ export class GameSession {
     this.renderer = createSceneRenderer(this.canvas, {
       unitVisuals: options.unitVisuals,
       featureVisuals: options.featureVisuals ?? [],
+      weaponKinds: options.weaponKinds ?? [],
       deposits: setup.deposits ?? [],
       playerColors: Array.from(players, (c) => c ?? "#808080"),
       maxUnits: setupCapacity(setup),
@@ -74,6 +94,15 @@ export class GameSession {
       ...(options.selectionColor ? { selectionColor: options.selectionColor } : {}),
     });
     this.focusStart();
+    const teams = denseTeams(setup.players);
+    this.teamOf = teams.teamOf;
+    this.activeSlot = options.localSlot;
+    this.fog = new FogView(
+      setupCapacity(setup),
+      teams.teamOf,
+      setup.ruleset,
+      options.fog === false ? undefined : teams.teamOf[options.localSlot],
+    );
 
     let drawn: () => void = () => undefined;
     this.firstFrame = new Promise((resolve) => (drawn = resolve));
@@ -84,6 +113,9 @@ export class GameSession {
           if (this.current) this.sim.recycle(this.current);
           this.current = snapshot;
           this.receivedAt = at;
+          this.seen = this.fog.update(snapshot);
+          this.renderer.addEvents(this.seen.events, at);
+          this.shadeFog(snapshot);
         },
         onStats: (s) => options.stats?.setSim(s),
         onError: (message) => options.onError?.(message),
@@ -91,16 +123,22 @@ export class GameSession {
       options.scripted ?? false,
     );
 
+    const activeSlot = (): number => this.activeSlot;
     this.input = new InputController({
       canvas: this.canvas,
       renderer: this.renderer,
       selection: this.selection,
-      localSlot: options.localSlot,
+      // A getter, so hotseat switches reach the input layer.
+      get localSlot() {
+        return activeSlot();
+      },
+      teams: teamsBySlot(setup),
       ruleset: setup.ruleset,
       terrain: setup.terrain,
       deposits: setup.deposits ?? [],
       unitVisuals: options.unitVisuals,
-      current: () => (this.current ? { snapshot: this.current, alpha: this.alpha() } : undefined),
+      // Input sees what the player sees: hidden enemies cannot be picked.
+      current: () => (this.seen ? { snapshot: this.seen, alpha: this.alpha() } : undefined),
       command: (cmd) => {
         this.issue(cmd);
       },
@@ -122,11 +160,12 @@ export class GameSession {
     const loop = (time: number): void => {
       this.input.update(Math.min((time - lastTime) / 1000, 0.1));
       lastTime = time;
-      const snap = this.current;
+      const snap = this.seen;
       if (snap) {
         this.renderer.setUnits(snap, this.alpha(), this.selection.ids);
         root["selected"] = String(this.selection.ids.size);
-        root["units"] = String(countOwned(snap, options.localSlot));
+        root["units"] = String(countOwned(snap, this.activeSlot));
+        root["slot"] = String(this.activeSlot);
         const ghost = this.input.ghostValid;
         if (ghost === undefined) delete root["ghost"];
         else root["ghost"] = ghost ? "valid" : "invalid";
@@ -143,6 +182,42 @@ export class GameSession {
   /** The latest snapshot, if one has arrived. Read-only: it is handed back to the worker. */
   get snapshot(): SnapshotBuffers | undefined {
     return this.current;
+  }
+
+  /** The player slot this machine commands now (changes only in hotseat mode). */
+  get localSlot(): number {
+    return this.activeSlot;
+  }
+
+  /**
+   * Hands control to player `slot` (hotseat debugging): the selection is cleared, and the
+   * fog of war, if on, switches to that player's team.
+   */
+  setLocalSlot(slot: number): void {
+    if (slot === this.activeSlot) return;
+    this.activeSlot = slot;
+    this.input.cancelPlacement();
+    this.selection.set([]);
+    if (this.fog.team !== undefined) this.fog.setTeam(this.teamOf[slot]);
+    if (this.current) {
+      this.seen = this.fog.update(this.current);
+      this.shadeFog(this.current);
+    }
+  }
+
+  /** Dense team index whose view is shown (fog of war), or undefined when fog is off. */
+  get viewTeam(): number | undefined {
+    return this.fog.team;
+  }
+
+  /** The match's ground. */
+  get terrain(): Terrain {
+    return this.options.setup.terrain;
+  }
+
+  /** The latest snapshot as the local team sees it (fog of war applied). */
+  get view(): ViewSnapshot | undefined {
+    return this.seen;
   }
 
   /** Ticks simulated so far, as of the latest snapshot. */
@@ -185,10 +260,39 @@ export class GameSession {
   /** Centres the camera on the local player's first unit of `type`. Returns false if none. */
   focusType(type: number): boolean {
     const snap = this.current;
-    const i = snap ? findUnit(snap, this.options.localSlot, type) : -1;
+    const i = snap ? findUnit(snap, this.activeSlot, type) : -1;
     if (!snap || i < 0) return false;
     this.renderer.camera.focus(snap.x[i] ?? 0, snap.z[i] ?? 0);
     return true;
+  }
+
+  /** Centres the camera on a ground point (minimap clicks). */
+  focus(x: number, z: number): void {
+    this.renderer.camera.focus(x, z);
+  }
+
+  /** Orders the selection to a ground point as a right click there would (minimap). */
+  orderAt(x: number, z: number, queue: boolean): void {
+    this.input.orderAt({ x, z }, queue);
+  }
+
+  /**
+   * The ground under the four corners of the view (top-left, top-right, bottom-right,
+   * bottom-left). Corners that look past the map edge into the sky are left out.
+   */
+  viewQuad(): GroundPoint[] {
+    const corners: [number, number][] = [
+      [-1, 1],
+      [1, 1],
+      [1, -1],
+      [-1, -1],
+    ];
+    const out: GroundPoint[] = [];
+    for (const [x, y] of corners) {
+      const p = this.renderer.groundAt(x, y);
+      if (p) out.push(p);
+    }
+    return out;
   }
 
   /** Narrows the selection to units of one type. */
@@ -219,6 +323,17 @@ export class GameSession {
     delete root["units"];
     delete root["placing"];
     delete root["ghost"];
+    delete root["fog"];
+    delete root["slot"];
+  }
+
+  /** Darkens the ground the view team has not explored or does not see now. */
+  private shadeFog(snapshot: SnapshotBuffers): void {
+    const team = this.fog.team;
+    const cells = snapshot.visionCols * snapshot.visionRows;
+    if (team === undefined || cells === 0) this.renderer.setFog(undefined);
+    else this.renderer.setFog(snapshot.vision, team * cells);
+    document.documentElement.dataset["fog"] = team === undefined ? "off" : String(team);
   }
 
   private alpha(): number {
@@ -240,6 +355,13 @@ export class GameSession {
     cam.zoomAt(0, 0, START_DISTANCE / cam.distance);
     cam.focus(start.x, start.z);
   }
+}
+
+/** Team of each player slot, indexed by slot. */
+function teamsBySlot(setup: MatchSetup): (number | undefined)[] {
+  const teams: (number | undefined)[] = [];
+  for (const p of setup.players) teams[p.slot] = p.team;
+  return teams;
 }
 
 /** Number of units and structures (finished or not) owned by `slot`. */

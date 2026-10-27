@@ -7,7 +7,8 @@ import { Simulation, TICK_RATE, type MatchSetup, type UnitTypeStats } from "./si
 import { createSnapshotBuffers } from "./snapshot";
 import { generateTerrain } from "./terrain";
 
-const base = TEST_UNIT_TYPES[0]!;
+/** Unarmed and leaving no wreck, so these tests are about the economy alone. */
+const base: UnitTypeStats = { ...TEST_UNIT_TYPES[0]!, weapons: [], wreckFeature: -1 };
 const structure = (over: Partial<UnitTypeStats>): UnitTypeStats => ({
   ...base,
   mobile: false,
@@ -85,6 +86,7 @@ function economyMatch(over: Partial<MatchSetup> = {}): MatchSetup {
       movementClasses: [{ maxSlope: 0.6 }],
       units: UNITS,
       features: [{ radius: 2, salvage: 100 }],
+      weapons: [],
     },
     initialUnits: [
       { slot: 0, type: T.commander, x: 300, z: 300 },

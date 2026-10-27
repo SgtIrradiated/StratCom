@@ -9,20 +9,24 @@ import {
   type PerspectiveCamera,
 } from "three";
 import { EntityKind, sampleHeight, type SnapshotBuffers, type Terrain } from "@stratcom/sim";
+import { HealthBars } from "./HealthBars";
+import { commitInstances } from "./instancing";
 import { IconLayer } from "./IconLayer";
 import { SelectionRings } from "./SelectionRings";
-import type { FeatureVisual, UnitVisual } from "./types";
+import type { FeatureVisual, UnitVisual, ViewSnapshot } from "./types";
 
 /** Unfinished units are drawn this grey, blending to the owner's colour as they complete. */
 const FRAME_GREY = 0.32;
 /** Height of a site at 0 % progress, as a fraction of the finished height. */
 const FRAME_MIN_HEIGHT = 0.12;
+/** Remembered enemy structures (out of sight) are drawn this much darker. */
+const REMEMBERED_SHADE = 0.45;
 
 /**
  * Draws every unit and feature. Near the ground it uses one `InstancedMesh` per unit type
  * and per feature type (draw calls scale with types, not units, docs/PLAN.md §4.3); zoomed
  * out, the {@link IconLayer} takes over with a cross-fade (features get no icon). Selected
- * units get a ring. Unfinished units rise from a low grey frame as they are built; features
+ * units get a ring, and damaged units a {@link HealthBars} bar. Unfinished units rise from a low grey frame as they are built; features
  * shrink as they are reclaimed. Per-instance data is written straight into the attribute
  * arrays each frame.
  */
@@ -39,6 +43,7 @@ export class UnitLayer {
   });
   private readonly icons: IconLayer;
   private readonly rings: SelectionRings;
+  private readonly bars: HealthBars;
   private readonly playerRgb: Float32Array;
   private readonly featureRgb: Float32Array;
 
@@ -83,7 +88,8 @@ export class UnitLayer {
     );
     this.icons = new IconLayer(visuals, maxUnits);
     this.rings = new SelectionRings(maxUnits, selectionColor);
-    this.group.add(this.icons.group, this.rings.mesh);
+    this.bars = new HealthBars(maxUnits);
+    this.group.add(this.icons.group, this.rings.mesh, this.bars.mesh);
   }
 
   /**
@@ -91,7 +97,7 @@ export class UnitLayer {
    * strategic-zoom factor: 0 draws models only, 1 icons only.
    */
   update(
-    snapshot: SnapshotBuffers,
+    snapshot: ViewSnapshot,
     alpha: number,
     selected: ReadonlySet<number>,
     camera: PerspectiveCamera,
@@ -101,9 +107,11 @@ export class UnitLayer {
     const matrices = this.meshes.map((m) => m.instanceMatrix.array as Float32Array);
     const drawModels = blend < 1;
     const drawIcons = blend > 0;
-    const { count, ids, kinds, types, owners, prevX, prevZ, x, z, heading, progress } = snapshot;
+    const { count, ids, kinds, types, owners, prevX, prevZ, x, z, heading, progress, health } =
+      snapshot;
     this.icons.begin(camera);
     this.rings.begin();
+    this.bars.begin(camera);
 
     for (let i = 0; i < count; i++) {
       const t = types[i] ?? 0;
@@ -121,9 +129,10 @@ export class UnitLayer {
       const rgb = (isFeature ? t : (owners[i] ?? 0)) * 3;
       // Unfinished units blend from grey to their owner's colour.
       const tint = isFeature || done >= 1 ? 1 : done * 0.6;
-      const r = FRAME_GREY + ((palette[rgb] ?? 1) - FRAME_GREY) * tint;
-      const g = FRAME_GREY + ((palette[rgb + 1] ?? 1) - FRAME_GREY) * tint;
-      const b = FRAME_GREY + ((palette[rgb + 2] ?? 1) - FRAME_GREY) * tint;
+      const shade = snapshot.remembered?.[i] === 1 ? REMEMBERED_SHADE : 1;
+      const r = (FRAME_GREY + ((palette[rgb] ?? 1) - FRAME_GREY) * tint) * shade;
+      const g = (FRAME_GREY + ((palette[rgb + 1] ?? 1) - FRAME_GREY) * tint) * shade;
+      const b = (FRAME_GREY + ((palette[rgb + 2] ?? 1) - FRAME_GREY) * tint) * shade;
       // Sites rise as they are built; debris flattens as it is reclaimed.
       const sy = isFeature
         ? 0.35 + 0.65 * done
@@ -165,15 +174,18 @@ export class UnitLayer {
           col[c + 2] = b;
         }
         if (isSelected && visual) this.rings.add(ux, uy, uz, visual.radius * 2);
+        // Sites show their build progress instead; only finished units get a bar.
+        const hp = health[i] ?? 1;
+        if (visual && done >= 1 && hp < 1) {
+          this.bars.add(ux, uy + visual.size[1], uz, Math.max(visual.radius * 2, 3), hp);
+        }
       }
       if (drawIcons && !isFeature) this.icons.add(t, ux, uy, uz, r, g, b, isSelected);
     }
 
     this.meshes.forEach((mesh, t) => {
-      mesh.count = counts[t] ?? 0;
+      commitInstances(mesh, counts[t] ?? 0);
       mesh.visible = drawModels;
-      mesh.instanceMatrix.needsUpdate = true;
-      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     });
     // Models fade out as icons fade in; transparency is only enabled mid-fade so the
     // common cases keep opaque, depth-sorted rendering.
@@ -185,6 +197,7 @@ export class UnitLayer {
     }
     this.icons.end(blend);
     this.rings.end(Math.max(0, 1 - blend * 2));
+    this.bars.end(blend < 0.5);
   }
 
   /**
@@ -233,5 +246,6 @@ export class UnitLayer {
     this.material.dispose();
     this.icons.dispose();
     this.rings.dispose();
+    this.bars.dispose();
   }
 }

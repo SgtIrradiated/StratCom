@@ -17,6 +17,7 @@ old one, and update the old one's status line.
 | [0009](0009-ruleset-compiler-and-hash.md)        | Ruleset compiler, numeric ids and hash      | Accepted (implemented in M3)    |
 | [0010](0010-flow-economy-and-construction.md)    | Flow economy, construction and structures   | Accepted (implemented in M4)    |
 | [0011](0011-asset-pipeline-and-model-loading.md) | Asset pipeline and model loading            | Proposed (C1–C3)                |
+| [0012](0012-combat-model.md)                     | Combat model: damage, vision and victory    | Accepted (implemented in M5)    |
 
 ## Writing a new ADR
 

@@ -5,6 +5,7 @@ import { RAW_MOVEMENT_CLASSES } from "./movement";
 import { RULESET } from "./index";
 import {
   RulesetError,
+  WRECK_SUFFIX,
   compileRuleset,
   rulesetFaction,
   rulesetFeature,
@@ -180,5 +181,35 @@ describe("compileRuleset validation", () => {
     expect(problemsOf(() => compile(packs))).toEqual(
       expect.arrayContaining([expect.stringMatching(/in content pack #0 but belongs to/)]),
     );
+  });
+});
+
+describe("wrecks", () => {
+  it("generates one wreck feature per unit, after the authored features", () => {
+    const authored = RAW_FEATURES.length;
+    for (const u of RULESET.units) {
+      expect(u.wreckFeature).toBeGreaterThanOrEqual(authored);
+      const wreck = RULESET.features[u.wreckFeature]!;
+      expect(wreck.id).toBe(`${u.id}${WRECK_SUFFIX}`);
+      expect(wreck.salvage).toBeCloseTo(u.cost.salvage * 0.5);
+      expect(wreck.visual.size[1]).toBeCloseTo(u.visual.size[1] * 0.5);
+    }
+    expect(RULESET.features.slice(0, authored).map((f) => f.id)).toEqual(
+      RAW_FEATURES.map((f) => f.id),
+    );
+  });
+
+  it("honours a custom salvage fraction and wreck: false", () => {
+    const packs = clonePacks();
+    (packs[0]!.units[0] as { wreck?: unknown }).wreck = { salvageFraction: 0.8 };
+    (packs[0]!.units[1] as { wreck?: unknown }).wreck = false;
+    const ruleset = compile(packs);
+    const [first, second] = [ruleset.units[0]!, ruleset.units[1]!];
+    expect(ruleset.features[first.wreckFeature]!.salvage).toBeCloseTo(first.cost.salvage * 0.8);
+    expect(second.wreckFeature).toBe(-1);
+  });
+
+  it("marks commanders", () => {
+    for (const u of RULESET.units) expect(u.commander).toBe(u.role === "commander");
   });
 });

@@ -3,6 +3,7 @@ import type { PlayerCommand, Vec2 } from "./commands";
 import { EntityKind } from "./ecs/world";
 import { cos, sin } from "./math/trig";
 import { createTestMatch, scriptedCommands } from "./scenario";
+import { terrainDepth, terrainWidth } from "./terrain";
 import { Simulation, type MatchSetup } from "./simulation";
 import { createSkirmishSetup } from "./skirmish";
 
@@ -10,12 +11,14 @@ import { createSkirmishSetup } from "./skirmish";
 export const DET_TICKS = 1000;
 
 /**
- * The cross-runtime determinism scenario (docs/PLAN.md §4.2): 500 units, 3 players, a
- * scripted command stream, 1,000 ticks. Returns the state hash every 100 ticks. Node,
- * Chromium, Firefox and WebKit must all return exactly the same array; CI enforces it with
- * `e2e/determinism.spec.ts`.
+ * The cross-runtime determinism scenario (docs/PLAN.md §4.2): 500 armed units, 3 hostile
+ * players, a scripted command stream, 1,000 ticks; the armies fight wherever they cross.
+ * Returns the state hash every 100 ticks. Node, Chromium, Firefox and WebKit must all return
+ * exactly the same array; CI enforces it with `e2e/determinism.spec.ts`.
+ *
+ * @param inspect Called with the simulation after the last tick, for tests.
  */
-export function runDetScenario(): number[] {
+export function runDetScenario(inspect?: (sim: Simulation) => void): number[] {
   const setup = createTestMatch(500, 0xdecaf, 3);
   const sim = new Simulation(setup);
   const hashes: number[] = [];
@@ -23,6 +26,7 @@ export function runDetScenario(): number[] {
     sim.step(scriptedCommands(setup, sim.tick));
     if ((t + 1) % 100 === 0) hashes.push(sim.stateHash());
   }
+  inspect?.(sim);
   return hashes;
 }
 
@@ -33,9 +37,9 @@ export const SKIRMISH_DET_TICKS = 1200;
  * The determinism scenario for real content: a 4-player 2v2 on Rustbelt Ridge with the
  * built-in ruleset (both factions, every movement class, flattened start plateaus, deposits
  * and debris). Each commander builds extractors, a generator and a factory; engineers assist
- * it and then reclaim debris; finished factories produce; combat units get the scripted
- * orders of {@link runDetScenario}. Returns the ruleset hash followed by the state hash
- * every 100 ticks.
+ * it and then reclaim debris; finished factories produce; land units march on the middle of
+ * the map and fight there. Returns the ruleset hash followed by the state hash every 100
+ * ticks.
  *
  * Unlike {@link runDetScenario} these values are not pinned, because any rebalance changes
  * them. What must hold is that every runtime returns the same array.
@@ -71,14 +75,20 @@ function skirmishCommands(setup: MatchSetup, sim: Simulation): PlayerCommand[] {
   const role = (type: number): string => RULESET.units[type]?.role ?? "";
   const idOf = (i: number): number => (1 << 20) | i;
   const commands: PlayerCommand[] = [];
-  // Combat units follow the generic script; builders are left to their work.
-  for (const cmd of scriptedCommands(setup, tick)) {
-    if (cmd.t !== "move") continue;
-    const units = cmd.units.filter((id) => {
-      const u = setup.initialUnits[id & 0xfffff];
-      return u !== undefined && role(u.type) === "land";
-    });
-    commands.push({ ...cmd, units });
+  // Every 200 ticks, each player's land units (the starting force and anything its factories
+  // have produced) head for the middle of the map, where the armies meet and fight.
+  // Builders are left to their work.
+  if (tick % 200 === 0) {
+    const w = sim.state;
+    const centre = { x: terrainWidth(setup.terrain) / 2, z: terrainDepth(setup.terrain) / 2 };
+    for (const p of setup.players) {
+      const units: number[] = [];
+      for (let i = 0; i < w.highWater; i++) {
+        if (w.alive[i] === 0 || w.kind[i] !== EntityKind.unit || w.owner[i] !== p.slot) continue;
+        if (role(w.type[i] ?? 0) === "land") units.push(w.idAt(i));
+      }
+      commands.push({ t: "move", slot: p.slot, units, to: centre });
+    }
   }
   for (const p of setup.players) {
     const own = setup.initialUnits.flatMap((u, i) => (u.slot === p.slot ? [i] : []));

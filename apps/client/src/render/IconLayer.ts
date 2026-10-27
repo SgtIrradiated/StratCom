@@ -12,6 +12,7 @@ import {
   Shape,
   ShapeGeometry,
 } from "three";
+import { commitInstances } from "./instancing";
 import type { IconShape, UnitVisual } from "./types";
 
 /** Icon size as a fraction of the distance to the camera (constant screen size). */
@@ -161,9 +162,7 @@ export class IconLayer {
     this.group.visible = opacity > 0;
     this.material.opacity = opacity;
     this.meshes.forEach((mesh, t) => {
-      mesh.count = this.counts[t] ?? 0;
-      mesh.instanceMatrix.needsUpdate = true;
-      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      commitInstances(mesh, this.counts[t] ?? 0);
     });
   }
 

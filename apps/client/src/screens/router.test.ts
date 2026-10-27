@@ -4,7 +4,7 @@ import { defaultSkirmish } from "../game/skirmishConfig";
 import { transition, type Screen, type ScreenEvent } from "./router";
 
 const config = defaultSkirmish({ factions: FACTIONS, maps: MAPS }, 1);
-const result = { outcome: "surrender" as const, ticks: 1200, rulesetHash: 7 };
+const result = { outcome: "surrender" as const, ticks: 1200, rulesetHash: 7, players: [] };
 
 const run = (events: ScreenEvent[], from: Screen = { id: "menu" }): Screen =>
   events.reduce(transition, from);

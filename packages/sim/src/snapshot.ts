@@ -1,4 +1,10 @@
 import { ECON_STRIDE, MAX_PLAYERS, readEconomy, type PlayerEconomy } from "./economy";
+import type { SimEvent } from "./events";
+import { PROJECTILE_CAPACITY } from "./projectiles";
+import { setupCapacity, type MatchSetup } from "./rules";
+import type { MatchStatus } from "./systems/victory";
+import { visionGrid } from "./systems/visibility";
+import { denseTeams } from "./teams";
 
 /** One factory's production queue, as shown in the HUD. */
 export interface ProductionInfo {
@@ -37,6 +43,30 @@ export interface SnapshotBuffers {
   heading: Float32Array;
   /** Build progress for units (1 = complete); remaining salvage fraction for features. */
   progress: Float32Array;
+  /** Health as a fraction of maximum for units; 0 for features. */
+  health: Float32Array;
+  /** Bitmask of the dense teams (see `denseTeams`) that see each entry. */
+  seenBy: Uint16Array;
+  /** Vision grid size, and the number of teams in {@link vision}. */
+  visionCols: number;
+  visionRows: number;
+  visionTeams: number;
+  /**
+   * Every team's fog grid, `visionTeams × visionCols × visionRows` cells (team-major, then
+   * row-major), as `Fog` states: unexplored, explored or visible.
+   */
+  vision: Uint8Array;
+  /** Number of valid projectile entries. */
+  projectileCount: number;
+  /** Projectile ground positions at the start and end of the tick. */
+  projPrevX: Float32Array;
+  projPrevZ: Float32Array;
+  projX: Float32Array;
+  projZ: Float32Array;
+  /** Fraction of each projectile's flight done, for arcs. */
+  projT: Float32Array;
+  /** Weapon id of each projectile. */
+  projWeapon: Uint16Array;
   /** Per-player economy, `ECON_STRIDE` figures per slot laid out by `Econ`. */
   economy: Float64Array;
   /**
@@ -44,10 +74,17 @@ export interface SnapshotBuffers {
    * rather than transferred.
    */
   production: ProductionInfo[];
+  /** What happened since the previous snapshot (shots, deaths). Structured-cloned. */
+  events: SimEvent[];
+  /** Every player's standing and the result. Structured-cloned. */
+  match: MatchStatus;
 }
 
-/** Allocates snapshot buffers able to hold `capacity` entities. */
-export function createSnapshotBuffers(capacity: number): SnapshotBuffers {
+/**
+ * Allocates snapshot buffers able to hold `capacity` entities and `visionSize` fog cells (all
+ * teams together). {@link createSnapshotBuffersFor} sizes both from a match setup.
+ */
+export function createSnapshotBuffers(capacity: number, visionSize = 0): SnapshotBuffers {
   return {
     tick: 0,
     count: 0,
@@ -61,26 +98,41 @@ export function createSnapshotBuffers(capacity: number): SnapshotBuffers {
     z: new Float32Array(capacity),
     heading: new Float32Array(capacity),
     progress: new Float32Array(capacity),
+    health: new Float32Array(capacity),
+    seenBy: new Uint16Array(capacity),
+    visionCols: 0,
+    visionRows: 0,
+    visionTeams: 0,
+    vision: new Uint8Array(visionSize),
+    projectileCount: 0,
+    projPrevX: new Float32Array(PROJECTILE_CAPACITY),
+    projPrevZ: new Float32Array(PROJECTILE_CAPACITY),
+    projX: new Float32Array(PROJECTILE_CAPACITY),
+    projZ: new Float32Array(PROJECTILE_CAPACITY),
+    projT: new Float32Array(PROJECTILE_CAPACITY),
+    projWeapon: new Uint16Array(PROJECTILE_CAPACITY),
     economy: new Float64Array(MAX_PLAYERS * ECON_STRIDE),
     production: [],
+    events: [],
+    match: { over: false, winnerTeam: -1, players: [] },
   };
 }
 
-/** The `ArrayBuffer`s backing a snapshot, for use as a `postMessage` transfer list. */
+/** Allocates snapshot buffers big enough for every entity and fog cell of `setup`. */
+export function createSnapshotBuffersFor(setup: MatchSetup): SnapshotBuffers {
+  const grid = visionGrid(setup.terrain);
+  const teams = denseTeams(setup.players).count;
+  return createSnapshotBuffers(setupCapacity(setup), grid.cols * grid.rows * teams);
+}
+
+/**
+ * The `ArrayBuffer`s backing a snapshot, for use as a `postMessage` transfer list: every
+ * typed-array field, found at run time, so a new array is transferred without being listed.
+ */
 export function snapshotTransferList(s: SnapshotBuffers): ArrayBuffer[] {
-  return [
-    s.ids,
-    s.kinds,
-    s.types,
-    s.owners,
-    s.prevX,
-    s.prevZ,
-    s.x,
-    s.z,
-    s.heading,
-    s.progress,
-    s.economy,
-  ].map((a) => a.buffer as ArrayBuffer);
+  return Object.values(s)
+    .filter((v): v is ArrayBufferView => ArrayBuffer.isView(v))
+    .map((a) => a.buffer as ArrayBuffer);
 }
 
 /** One player's economy as of this snapshot. */

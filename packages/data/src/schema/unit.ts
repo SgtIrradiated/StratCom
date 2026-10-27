@@ -10,7 +10,12 @@ export const MovementClassDef = z.object({
 });
 export type MovementClassDef = z.infer<typeof MovementClassDef>;
 
-/** How a weapon delivers damage. Projectile behaviour arrives with combat in M5. */
+/**
+ * How a weapon looks and is described. The simulation reads only the numbers: a weapon
+ * without `projectileSpeed` hits instantly (beams, flame); one with it fires a projectile
+ * that lands where the target was, so slow shells can miss a moving unit. `areaRadius`
+ * damages every hostile unit around the impact point.
+ */
 export const WeaponKind = z.enum(["ballistic", "beam", "flame", "artillery"]);
 export type WeaponKind = z.infer<typeof WeaponKind>;
 
@@ -44,6 +49,19 @@ export type UnitRole = z.infer<typeof UnitRole>;
  */
 export const Placement = z.enum(["ground", "deposit"]);
 export type Placement = z.infer<typeof Placement>;
+
+/** Most weapons one unit may carry. The simulation keeps fixed-size weapon state per unit. */
+export const MAX_UNIT_WEAPONS = 4;
+
+/**
+ * What a destroyed unit leaves behind: a wreck worth `salvageFraction` of its salvage cost
+ * (scaled by how far it was built), or nothing (`false`).
+ */
+export const WreckDef = z.union([
+  z.literal(false),
+  z.object({ salvageFraction: z.number().min(0).max(1).default(0.5) }),
+]);
+export type WreckDef = z.infer<typeof WreckDef>;
 
 /** Strategic-zoom icon shape. */
 export const IconShape = z.enum(["circle", "square", "triangle", "diamond", "star", "hexagon"]);
@@ -88,7 +106,9 @@ export const UnitDef = z
     footprint: z
       .object({ x: z.number().int().min(1).max(16), z: z.number().int().min(1).max(16) })
       .optional(),
-    weapons: z.array(ContentId).default([]),
+    weapons: z.array(ContentId).max(MAX_UNIT_WEAPONS).default([]),
+    /** The wreck it leaves when destroyed. Defaults to half its salvage cost. */
+    wreck: WreckDef.default({ salvageFraction: 0.5 }),
     /** Unit ids this unit can construct (structures for engineers, units for factories). */
     builds: z.array(ContentId).default([]),
     /**

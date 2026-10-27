@@ -77,8 +77,26 @@ Add an entry to the weapons array in the same `units.ts`:
 ```
 
 `kind` is `ballistic`, `beam`, `flame` or `artillery`. Give projectile weapons a
-`projectileSpeed` (m/s) and splash weapons an `areaRadius` (m). Weapons fire from M5 on;
-until then they show in the UI only.
+`projectileSpeed` (m/s) and splash weapons an `areaRadius` (m). How the simulation reads
+them (ADR-0012):
+
+- **No `projectileSpeed`:** the shot hits at once (beams, flame).
+- **With `projectileSpeed`:** a projectile flies to where the target was when it fired, so a
+  slow shell can miss a unit that moves away. Artillery arcs high on screen; the arc is
+  visual only.
+- **`areaRadius` above 0:** every hostile unit whose edge is inside the area takes the full
+  `damage`. Allies are never hit.
+- **`range`** runs from the shooter's centre to the target's edge. A weapon fires only at
+  what its team can see, so a weapon that outranges the unit's `vision` needs a spotter.
+
+A unit carries at most 4 weapons (`MAX_UNIT_WEAPONS`); each aims and fires on its own.
+
+## Wrecks
+
+A destroyed unit leaves a wreck worth half its salvage cost by default. The compiler
+generates the wreck feature (`<unit id>__wreck`) for you. Change the share with
+`wreck: { salvageFraction: 0.8 }`, or leave no wreck with `wreck: false`. A site destroyed
+while half built leaves half a wreck.
 
 ## Add a faction
 

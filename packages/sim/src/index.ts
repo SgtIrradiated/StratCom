@@ -41,7 +41,9 @@ export {
 export {
   TEST_MOVEMENT_CLASSES,
   TEST_RULESET,
+  TEST_FEATURES,
   TEST_UNIT_TYPES,
+  TEST_WEAPONS,
   createTestMatch,
   scriptedCommands,
 } from "./scenario";
@@ -75,7 +77,16 @@ export {
   mapFeatures,
   type SkirmishOptions,
 } from "./skirmish";
+export type { SimEvent } from "./events";
+export { MAX_PENDING_EVENTS } from "./events";
+export { PROJECTILE_CAPACITY } from "./projectiles";
+export { RETARGET_TICKS } from "./systems/combat";
+export type { PlayerCombatStats } from "./systems/health";
+export type { MatchStatus, PlayerStatus, VictoryRule } from "./systems/victory";
+export { Fog, VISION_CELL, VISION_TICKS, visionGrid } from "./systems/visibility";
+export { NO_TEAM, denseTeams } from "./teams";
 export {
+  MAX_WEAPONS,
   Simulation,
   TICK_MS,
   TICK_RATE,
@@ -83,15 +94,19 @@ export {
   type FeatureTypeStats,
   type InitialFeature,
   type InitialUnit,
+  type MatchRules,
   type MovementClassDef,
   type MatchSetup,
   type PlayerSetup,
   type SimRuleset,
   type UnitTypeStats,
+  type WeaponStats,
 } from "./simulation";
+export { createDuelMatch, duelCommands } from "./duel";
 export { DET_TICKS, SKIRMISH_DET_TICKS, runDetScenario, runSkirmishDetScenario } from "./detcheck";
 export {
   createSnapshotBuffers,
+  createSnapshotBuffersFor,
   snapshotEconomy,
   snapshotTransferList,
   type ProductionInfo,
