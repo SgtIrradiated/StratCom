@@ -62,7 +62,7 @@ players })` in `@stratcom/sim`, a pure function. Peers therefore exchange only t
 - The join handshake must compare `RULESET.hash` ([ADR-0009](adr/0009-ruleset-compiler-and-hash.md))
   together with the protocol version. Any content difference, even a renamed unit, changes
   the hash.
-- AI slots are virtual players that issue ordinary commands (M6). Their commands travel
+- AI slots are virtual players that issue ordinary commands (M6, runtime in M6.1). Their commands travel
   like a human's, so peers need nothing AI-specific; which peer runs them is an open
   question below.
 

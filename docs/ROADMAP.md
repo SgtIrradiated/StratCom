@@ -1,6 +1,6 @@
 # StratCom Roadmap
 
-_Last updated: 2026-10-27 21:51 CET, M5 implemented (M1/M2 exit criteria partly pending)._
+_Last updated: 2026-10-28 21:51 CET, M6 split into M6.1–M6.5 (M1/M2 exit criteria partly pending)._
 
 This roadmap reflects the decisions from [PLAN.md §12](PLAN.md#12-decisions):
 
@@ -219,6 +219,65 @@ Deviations and notes:
 
 **Exit:** the AI beats a passive player and loses to a competent one, and full matches run
 end to end.
+
+M6 is delivered in five steps. Each one ends with a testable result, its own docs update and
+green CI, and records its deviations like a full milestone. Every step adds to the
+determinism suite.
+
+### M6.1: AI runtime and harness (planned)
+
+- Decide where the AI lives and record it in ADR-0013. Proposed: a new `packages/ai`
+  (`sim ← ai ← apps`) under the same determinism lint rules, running in the sim worker and
+  feeding `PlayerCommand`s into the tick's command list like human input
+- `AiPlayer` interface: thinks on a fixed tick cadence, staggered per slot; reads only what
+  its team can see (fog, ADR-0012) plus its own economy; emits ordinary commands
+- `ai` slots from `skirmishConfig.ts` get an `AiPlayer` through the setup, `GameSession` and
+  the worker; slots carry a difficulty field (no behaviour difference yet)
+- Headless match runner in Node: setup plus AIs, run to victory or a tick cap, return the
+  result and the state hash. Used by tests and for tuning
+
+**Exit:** a trivial AI (it sends its starting force at the enemy start) plays through the
+client and the headless runner. An AI-vs-AI run gives the same hash twice and across engines
+(det-check). The AI's cost per tick is measured in [performance.md](performance.md).
+
+### M6.2: Economy and build orders (planned)
+
+- `AiProfileDef` in `packages/data` (zod, compiled into `RULESET`): build order steps and
+  economy targets per faction. AI code never branches on a faction id
+- Building through the pure placement functions (`placement.ts`): extractors on deposits,
+  generators, factories; engineer production; reclaim of nearby debris; reacting to salvage
+  and power stalls
+- Retire the M3 placeholder starting force for every slot once the AI can build its own
+
+**Exit:** an AI alone on a map, for each faction, has extractors, a generator and a
+producing factory by a pinned tick in the headless runner, without long stalls.
+
+### M6.3: Army and attack waves (planned)
+
+- Production mix from the profile, rally points, produced units grouped into an army
+- Attack waves when the army reaches a strength threshold, aimed at the known or expected
+  enemy base; survivors regroup
+
+**Exit:** the AI destroys a passive opponent's commander on every skirmish map, for each
+faction, within a tick cap (headless runner).
+
+### M6.4: Scouting and base defence (planned)
+
+- Scouting with a cheap unit, remembered enemy sightings, a coarse threat map
+- Defence: the army returns when the base or commander is attacked, static defences where
+  the faction has them, the commander kept out of fights
+
+**Exit:** the AI survives a scripted early rush and finds the enemy base without being given
+the start positions.
+
+### M6.5: Difficulty, tuning and full matches (planned)
+
+- Easy and Normal as data (think interval, command rate cap, build order efficiency, wave
+  size), chosen per AI slot in Skirmish Setup
+- Tuning passes with AI-vs-AI runs; an e2e test starts a match against the AI from the menu
+  and sees the AI build
+
+**Exit:** the M6 exit above, on both Easy and Normal.
 
 ## M7: v0.1 "First Light", the first playable release
 

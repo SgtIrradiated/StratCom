@@ -53,5 +53,6 @@ runtimes in `e2e/determinism.spec.ts`.
 ## Conventions
 
 Tests sit beside code as `*.test.ts`. Every exported symbol gets TSDoc. Use Conventional
-Commits. Significant decisions need an ADR in `docs/adr/`. Update package READMEs,
+Commits. When you update a "Last updated" line in a doc, include the time as well as the date:
+run `date '+%Y-%m-%d %H:%M %Z'` first (Claude has no clock of its own). Significant decisions need an ADR in `docs/adr/`. Update package READMEs,
 `docs/architecture.md` and `docs/ROADMAP.md` when structure or milestone status changes.
